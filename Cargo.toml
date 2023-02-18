@@ -1,0 +1,27 @@
+[package]
+name = "TextService"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+simple-logging = "2"
+log = "0.4"
+winreg = "0.11"
+
+[dependencies.windows]
+version = "0.44"
+features = [
+    "implement",
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_SystemServices",
+    "Win32_System_LibraryLoader",
+    "Win32_UI_TextServices",
+]
+
+[build-dependencies]
+embed-resource = "1.8"
