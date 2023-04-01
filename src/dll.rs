@@ -1,10 +1,10 @@
 use std::ffi::c_void;
 
-use windows::{Win32::{Foundation::{HINSTANCE, MAX_PATH, E_FAIL, S_OK, CLASS_E_CLASSNOTAVAILABLE, E_UNEXPECTED}, System::{SystemServices::DLL_PROCESS_ATTACH, LibraryLoader::GetModuleFileNameW, Com::IClassFactory}}, core::{HRESULT, GUID, Interface, IUnknown}};
+use windows::{Win32::Foundation::{MAX_PATH, E_FAIL, S_OK, CLASS_E_CLASSNOTAVAILABLE, E_UNEXPECTED}, Win32::System::{SystemServices::DLL_PROCESS_ATTACH, LibraryLoader::GetModuleFileNameW, Com::IClassFactory}, Win32::{UI::TextServices::ITfTextInputProcessor, Foundation::HMODULE}, core::{HRESULT, GUID, ComInterface, IUnknown}};
 
 use crate::{globals::{DLL_INSTANCE, CLSID_TEXT_SERVICE}, register::{register_profile, register_server, unregister_server, unregister_profile}, factory::ClassFactory};
 
-pub fn get_module_path(instance: HINSTANCE) -> Result<String, HRESULT> {
+pub fn get_module_path(instance: HMODULE) -> Result<String, HRESULT> {
     let mut path = [0u16; MAX_PATH as usize];
     let path_len = unsafe { GetModuleFileNameW(instance, &mut path) } as usize;
     String::from_utf16(&path[0..path_len]).map_err(|_| E_FAIL)
@@ -45,7 +45,7 @@ pub unsafe extern "system" fn DllUnregisterServer() -> HRESULT {
 #[allow(non_snake_case)]
 #[doc(hidden)]
 pub extern "stdcall" fn DllMain(
-    dll_instance: HINSTANCE,
+    dll_instance: HMODULE,
     reason: u32,
     _reserved: *mut c_void,
 ) -> bool {
@@ -76,6 +76,12 @@ pub unsafe extern "system" fn DllGetClassObject(
         .unwrap();
     }
     log::trace!("DllGetClassObject");
+    log::trace!("riid {:?}", *riid);
+    log::trace!("rclsid {:?}", *rclsid);
+    log::trace!("CLassFactory {:?}", IClassFactory::IID);
+    log::trace!("IUnknown {:?}", IUnknown::IID);
+    log::trace!("TextService {:?}", CLSID_TEXT_SERVICE);
+    log::trace!("ITfTextInputProcessor {:?}", ITfTextInputProcessor::IID);
     
     if *riid != IClassFactory::IID || *riid != IUnknown::IID {
         return E_UNEXPECTED;

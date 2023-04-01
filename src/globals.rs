@@ -1,6 +1,6 @@
-use windows::{core::GUID, Win32::{Foundation::HINSTANCE, System::SystemServices::{SUBLANG_ENGLISH_US, LANG_ENGLISH}}};
+use windows::{core::GUID, Win32::{System::SystemServices::{SUBLANG_ENGLISH_US, LANG_ENGLISH}, Foundation::HMODULE}};
 
-pub static mut DLL_INSTANCE: HINSTANCE = HINSTANCE(0);
+pub static mut DLL_INSTANCE: HMODULE = HMODULE(0);
 
 pub const CLSID_TEXT_SERVICE: GUID = GUID::from_u128(0xe7ea138e_69f8_11d7_a6ea_00065b84435c);
 pub const GUID_PROFILE: GUID = GUID::from_u128(0xe7ea138f_69f8_11d7_a6ea_00065b84435c);

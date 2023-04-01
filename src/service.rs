@@ -7,7 +7,7 @@ use windows::{
 pub struct TextService {}
 
 impl ITfTextInputProcessor_Impl for TextService {
-    fn Activate(&self, _ptim: &Option<ITfThreadMgr>, _tid: u32) -> Result<()> {
+    fn Activate(&self, _ptim: Option<&ITfThreadMgr>, _tid: u32) -> Result<()> {
         log::trace!("TextService::Activate");
         S_OK.ok()
     }
