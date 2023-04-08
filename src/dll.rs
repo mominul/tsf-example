@@ -1,8 +1,19 @@
 use std::ffi::c_void;
 
-use windows::{Win32::Foundation::{MAX_PATH, E_FAIL, S_OK, CLASS_E_CLASSNOTAVAILABLE, E_UNEXPECTED}, Win32::System::{SystemServices::DLL_PROCESS_ATTACH, LibraryLoader::GetModuleFileNameW, Com::IClassFactory}, Win32::{UI::TextServices::ITfTextInputProcessor, Foundation::HMODULE}, core::{HRESULT, GUID, ComInterface, IUnknown}};
+use windows::{
+    core::{ComInterface, IUnknown, GUID, HRESULT},
+    Win32::Foundation::{CLASS_E_CLASSNOTAVAILABLE, E_FAIL, E_UNEXPECTED, MAX_PATH, S_OK},
+    Win32::System::{
+        Com::IClassFactory, LibraryLoader::GetModuleFileNameW, SystemServices::DLL_PROCESS_ATTACH,
+    },
+    Win32::{Foundation::HMODULE, UI::TextServices::ITfTextInputProcessor},
+};
 
-use crate::{globals::{DLL_INSTANCE, CLSID_TEXT_SERVICE}, register::{register_profile, register_server, unregister_server, unregister_profile}, factory::ClassFactory};
+use crate::{
+    factory::ClassFactory,
+    globals::{CLSID_TEXT_SERVICE, DLL_INSTANCE},
+    register::{register_profile, register_server, unregister_profile, unregister_server},
+};
 
 pub fn get_module_path(instance: HMODULE) -> Result<String, HRESULT> {
     let mut path = [0u16; MAX_PATH as usize];
@@ -50,6 +61,17 @@ pub extern "stdcall" fn DllMain(
     _reserved: *mut c_void,
 ) -> bool {
     if reason == DLL_PROCESS_ATTACH {
+        // Sets up logging to the Cargo.toml directory for debug purposes.
+        #[cfg(debug_assertions)]
+        {
+            // Set up logging to the project directory.
+            simple_logging::log_to_file(
+                &format!("{}\\debug.log", env!("CARGO_MANIFEST_DIR")),
+                log::LevelFilter::Trace,
+            )
+            .unwrap();
+        }
+
         unsafe {
             DLL_INSTANCE = dll_instance;
         }
@@ -60,38 +82,45 @@ pub extern "stdcall" fn DllMain(
 #[no_mangle]
 #[allow(non_snake_case)]
 #[doc(hidden)]
-pub unsafe extern "system" fn DllGetClassObject(
+pub unsafe extern "stdcall" fn DllGetClassObject(
     rclsid: *const GUID,
     riid: *const GUID,
-    pout: *mut *const core::ffi::c_void,
+    pout: *mut *mut core::ffi::c_void,
 ) -> HRESULT {
-    // Sets up logging to the Cargo.toml directory for debug purposes.
-    #[cfg(debug_assertions)]
-    {
-        // Set up logging to the project directory.
-        simple_logging::log_to_file(
-            &format!("{}\\debug.log", env!("CARGO_MANIFEST_DIR")),
-            log::LevelFilter::Trace,
-        )
-        .unwrap();
-    }
     log::trace!("DllGetClassObject");
     log::trace!("riid {:?}", *riid);
     log::trace!("rclsid {:?}", *rclsid);
-    log::trace!("CLassFactory {:?}", IClassFactory::IID);
+    log::trace!("IClassFactory {:?}", IClassFactory::IID);
     log::trace!("IUnknown {:?}", IUnknown::IID);
     log::trace!("TextService {:?}", CLSID_TEXT_SERVICE);
     log::trace!("ITfTextInputProcessor {:?}", ITfTextInputProcessor::IID);
-    
-    if *riid != IClassFactory::IID || *riid != IUnknown::IID {
+
+    // Interface out pointer need to be set as null if error occurs.
+    std::ptr::write(pout, std::ptr::null_mut());
+
+    if *riid != IClassFactory::IID {
+        log::trace!("E_UNEXPECTED");
         return E_UNEXPECTED;
     }
 
-    let factory = ClassFactory {};
-    let unknown: IUnknown = factory.into();
-
-    match *rclsid {
-        CLSID_TEXT_SERVICE => unknown.query(&*riid, pout),
-        _ => CLASS_E_CLASSNOTAVAILABLE,
+    if *rclsid != CLSID_TEXT_SERVICE {
+        log::trace!("CLASS_E_CLASSNOTAVAILABLE");
+        return CLASS_E_CLASSNOTAVAILABLE;
     }
+
+    let factory = ClassFactory {};
+    let factory: IClassFactory = factory.into();
+
+    std::ptr::write(pout, std::mem::transmute(factory));
+
+    log::trace!("Done DllGetClassObject");
+
+    S_OK
+}
+
+#[no_mangle]
+pub extern "stdcall" fn DllCanUnloadNow() -> HRESULT {
+    log::trace!("DllCanUnloadNow");
+
+    S_OK
 }
