@@ -6,7 +6,7 @@ use windows::{
     Win32::System::{
         Com::IClassFactory, LibraryLoader::GetModuleFileNameW, SystemServices::DLL_PROCESS_ATTACH,
     },
-    Win32::{Foundation::HMODULE, UI::TextServices::ITfTextInputProcessor},
+    Win32::{Foundation::{HMODULE, S_FALSE}, UI::TextServices::ITfTextInputProcessor},
 };
 
 use crate::{
@@ -25,14 +25,6 @@ pub fn get_module_path(instance: HMODULE) -> Result<String, HRESULT> {
 #[allow(non_snake_case)]
 #[doc(hidden)]
 pub unsafe extern "system" fn DllRegisterServer() -> HRESULT {
-    // let module_path = {
-    //     let result = get_module_path(DLL_INSTANCE);
-    //     if let Err(err) = result {
-    //         return err;
-    //     }
-    //     result.unwrap()
-    // };
-
     if register_server(DLL_INSTANCE).is_ok() && register_profile(DLL_INSTANCE).is_ok() {
         S_OK
     } else {
@@ -122,5 +114,5 @@ pub unsafe extern "stdcall" fn DllGetClassObject(
 pub extern "stdcall" fn DllCanUnloadNow() -> HRESULT {
     log::trace!("DllCanUnloadNow");
 
-    S_OK
+    S_FALSE
 }
