@@ -1,4 +1,10 @@
-use windows::{core::GUID, Win32::{System::SystemServices::{SUBLANG_ENGLISH_US, LANG_ENGLISH}, Foundation::HMODULE}};
+use windows::{
+    core::GUID,
+    Win32::{
+        Foundation::HMODULE,
+        System::SystemServices::{LANG_ENGLISH, SUBLANG_ENGLISH_US},
+    },
+};
 
 pub static mut DLL_INSTANCE: HMODULE = HMODULE(0);
 

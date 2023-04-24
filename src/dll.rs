@@ -2,11 +2,16 @@ use std::ffi::c_void;
 
 use windows::{
     core::{ComInterface, IUnknown, GUID, HRESULT},
-    Win32::Foundation::{CLASS_E_CLASSNOTAVAILABLE, E_FAIL, E_UNEXPECTED, MAX_PATH, S_OK},
-    Win32::System::{
-        Com::IClassFactory, LibraryLoader::GetModuleFileNameW, SystemServices::DLL_PROCESS_ATTACH,
+    Win32::{
+        Foundation::{
+            CLASS_E_CLASSNOTAVAILABLE, E_FAIL, E_UNEXPECTED, HMODULE, MAX_PATH, S_FALSE, S_OK,
+        },
+        System::{
+            Com::IClassFactory, LibraryLoader::GetModuleFileNameW,
+            SystemServices::DLL_PROCESS_ATTACH,
+        },
+        UI::TextServices::ITfTextInputProcessor,
     },
-    Win32::{Foundation::{HMODULE, S_FALSE}, UI::TextServices::ITfTextInputProcessor},
 };
 
 use crate::{

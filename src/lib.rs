@@ -1,6 +1,5 @@
-
-mod globals;
 mod dll;
-mod register;
 mod factory;
+mod globals;
+mod register;
 mod service;

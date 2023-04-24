@@ -1,7 +1,7 @@
 use windows::{
-    core::{implement, IUnknown, ComInterface, Result, GUID},
+    core::{implement, ComInterface, IUnknown, Result, GUID},
     Win32::{
-        Foundation::{BOOL, CLASS_E_NOAGGREGATION, S_OK, E_NOINTERFACE},
+        Foundation::{BOOL, CLASS_E_NOAGGREGATION, E_NOINTERFACE, S_OK},
         System::Com::{IClassFactory, IClassFactory_Impl},
         UI::TextServices::ITfTextInputProcessor,
     },

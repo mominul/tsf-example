@@ -1,6 +1,9 @@
 use windows::{
     core::{implement, Result},
-    Win32::{UI::TextServices::{ITfTextInputProcessor, ITfTextInputProcessor_Impl, ITfThreadMgr}, Foundation::S_OK},
+    Win32::{
+        Foundation::S_OK,
+        UI::TextServices::{ITfTextInputProcessor, ITfTextInputProcessor_Impl, ITfThreadMgr},
+    },
 };
 
 #[implement(ITfTextInputProcessor)]

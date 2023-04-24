@@ -1,14 +1,28 @@
-use windows::{Win32::{System::Com::{CLSCTX_INPROC_SERVER, CoCreateInstance}, UI::TextServices::{CLSID_TF_InputProcessorProfiles, ITfInputProcessorProfiles}, Foundation::HMODULE}, core::{GUID, ComInterface}};
-use winreg::{RegKey, enums::HKEY_CLASSES_ROOT};
+use windows::{
+    core::{ComInterface, GUID},
+    Win32::{
+        Foundation::HMODULE,
+        System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER},
+        UI::TextServices::{CLSID_TF_InputProcessorProfiles, ITfInputProcessorProfiles},
+    },
+};
+use winreg::{enums::HKEY_CLASSES_ROOT, RegKey};
 
-use crate::{globals::{CLSID_TEXT_SERVICE, TEXTSERVICE_DESC, TEXTSERVICE_LANGID, GUID_PROFILE, TEXTSERVICE_ICON_INDEX}, dll::get_module_path};
+use crate::{
+    dll::get_module_path,
+    globals::{
+        CLSID_TEXT_SERVICE, GUID_PROFILE, TEXTSERVICE_DESC, TEXTSERVICE_ICON_INDEX,
+        TEXTSERVICE_LANGID,
+    },
+};
 
 pub fn create_instance<T: ComInterface>(clsid: &GUID) -> windows::core::Result<T> {
     unsafe { CoCreateInstance(clsid, None, CLSCTX_INPROC_SERVER) }
 }
 
 pub fn register_server(handle: HMODULE) -> std::io::Result<()> {
-    let filename = get_module_path(handle).map_err(|_| std::io::Error::from(std::io::ErrorKind::InvalidData))?;
+    let filename = get_module_path(handle)
+        .map_err(|_| std::io::Error::from(std::io::ErrorKind::InvalidData))?;
 
     let reg_path = format!("CLSID\\{{{CLSID_TEXT_SERVICE:?}}}");
 
@@ -36,7 +50,14 @@ pub fn register_profile(handle: HMODULE) -> windows::core::Result<()> {
     let description: Vec<u16> = TEXTSERVICE_DESC.encode_utf16().collect();
 
     unsafe {
-        profiles.AddLanguageProfile(&CLSID_TEXT_SERVICE, TEXTSERVICE_LANGID, &GUID_PROFILE, &description, &icon_path, TEXTSERVICE_ICON_INDEX)?;
+        profiles.AddLanguageProfile(
+            &CLSID_TEXT_SERVICE,
+            TEXTSERVICE_LANGID,
+            &GUID_PROFILE,
+            &description,
+            &icon_path,
+            TEXTSERVICE_ICON_INDEX,
+        )?;
     }
 
     Ok(())
