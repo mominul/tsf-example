@@ -29,7 +29,7 @@ impl IClassFactory_Impl for ClassFactory {
 
         unsafe {
             if *riid == ITfTextInputProcessor::IID {
-                let unknown: IUnknown = TextService {}.into();
+                let unknown: IUnknown = TextService::new().into();
                 unknown.query(&*riid, ppvobject as _).ok()
             } else {
                 log::trace!("Unknown IID: {:?}", *riid);
