@@ -13,12 +13,12 @@ use windows::{
 };
 
 #[implement(ITfTextInputProcessor, ITfThreadMgrEventSink)]
-pub struct TextService<'a> {
-    thread_mgr: RefCell<Option<&'a ITfThreadMgr>>,
+pub struct TextService {
+    thread_mgr: RefCell<Option<ITfThreadMgr>>,
     event_sink_cookie: RefCell<u32>,
 }
 
-impl TextService<'_> {
+impl TextService {
     pub fn new() -> Self {
         TextService {
             thread_mgr: RefCell::new(None),
@@ -27,14 +27,13 @@ impl TextService<'_> {
     }
 }
 
-impl ITfTextInputProcessor_Impl for TextService<'_> {
+impl ITfTextInputProcessor_Impl for TextService {
     fn Activate(&self, ptim: Option<&ITfThreadMgr>, _tid: u32) -> Result<()> {
         log::trace!("TextService::Activate");
-        // We use transmute here to extend the lifetime of the ITfThreadMgr reference
-        let thread_mgr = unsafe { ptim.map(|v| transmute(v)) };
+        let thread_mgr = ptim.map(|v| v.clone());
         self.thread_mgr.replace(thread_mgr);
 
-        let source: ITfSource = self.thread_mgr.borrow().unwrap().cast()?;
+        let source: ITfSource = self.thread_mgr.borrow().as_ref().unwrap().cast()?;
         let sink: ITfThreadMgrEventSink = unsafe { self.cast().unwrap() };
         let res = unsafe { source.AdviseSink(&ITfThreadMgrEventSink::IID, &sink) };
 
@@ -59,7 +58,13 @@ impl ITfTextInputProcessor_Impl for TextService<'_> {
             return S_OK.ok(); // never Advised
         }
 
-        if let Ok(source) = self.thread_mgr.borrow().unwrap().cast::<ITfSource>() {
+        if let Ok(source) = self
+            .thread_mgr
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .cast::<ITfSource>()
+        {
             unsafe {
                 _ = source.UnadviseSink(*self.event_sink_cookie.borrow());
                 log::trace!("TextService::Deactivate: Unadvised!");
@@ -75,7 +80,7 @@ impl ITfTextInputProcessor_Impl for TextService<'_> {
     }
 }
 
-impl ITfThreadMgrEventSink_Impl for TextService<'_> {
+impl ITfThreadMgrEventSink_Impl for TextService {
     fn OnInitDocumentMgr(&self, _pdim: Option<&ITfDocumentMgr>) -> Result<()> {
         log::trace!("TextService::OnInitDocumentMgr");
         S_OK.ok()
