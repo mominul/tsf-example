@@ -31,6 +31,7 @@ impl TextService {
     }
 
     fn init_text_edit_sink(&self, doc_mgr: &ITfDocumentMgr) {
+        log::trace!("TextService::init_text_edit_sink");
         // clear out any previous sink first
         self.uninit_text_edit_sink();
 
@@ -50,6 +51,7 @@ impl TextService {
     }
 
     fn uninit_text_edit_sink(&self) {
+        log::trace!("TextService::uninit_text_edit_sink");
         if *self.edit_sink_cookie.borrow() != TF_INVALID_COOKIE {
             if let Ok(source) = self
                 .edit_sink_context
@@ -151,7 +153,12 @@ impl ITfThreadMgrEventSink_Impl for TextService {
     ) -> Result<()> {
         log::trace!("TextService::OnSetFocus");
         // Whenever focus is changed, we initialize the TextEditSink.
-        self.init_text_edit_sink(pdimfocus.unwrap());
+        if let Some(doc_mgr) = pdimfocus {
+            self.init_text_edit_sink(doc_mgr);
+        } else {
+            self.uninit_text_edit_sink();
+        }
+        
         S_OK.ok()
     }
 
