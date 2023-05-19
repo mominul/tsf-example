@@ -1,4 +1,4 @@
-use std::ffi::c_void;
+use std::{ffi::c_void, path::PathBuf, time::SystemTime};
 
 use windows::{
     core::{ComInterface, IUnknown, GUID, HRESULT},
@@ -58,12 +58,19 @@ pub extern "stdcall" fn DllMain(
     _reserved: *mut c_void,
 ) -> bool {
     if reason == DLL_PROCESS_ATTACH {
-        // Sets up logging to the Cargo.toml directory for debug purposes.
+        // Sets up logging to the dll's directory for debug purposes.
         #[cfg(debug_assertions)]
         {
-            // Set up logging to the project directory.
+            // Add some value to the name of the log file to prevent overwriting
+            let time = SystemTime::now();
+            let time = time.duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
+            let mut path: PathBuf = get_module_path(dll_instance).unwrap().into();
+            path.pop();
+            path.push(format!("debug-{}.log", time));
+            
+            // Set up logging to the directory where the dll is present
             simple_logging::log_to_file(
-                &format!("{}\\debug.log", env!("CARGO_MANIFEST_DIR")),
+                path,
                 log::LevelFilter::Trace,
             )
             .unwrap();
