@@ -3,3 +3,4 @@ mod factory;
 mod globals;
 mod register;
 mod service;
+mod languagebar;
