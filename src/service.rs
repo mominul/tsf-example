@@ -5,12 +5,15 @@ use windows::{
     Win32::{
         Foundation::{E_FAIL, S_OK},
         UI::TextServices::{
-            ITfContext, ITfDocumentMgr, ITfEditRecord, ITfSource, ITfTextEditSink,
-            ITfTextEditSink_Impl, ITfTextInputProcessor, ITfTextInputProcessor_Impl, ITfThreadMgr,
-            ITfThreadMgrEventSink, ITfThreadMgrEventSink_Impl, TF_GTP_INCL_TEXT, TF_INVALID_COOKIE,
+            ITfContext, ITfDocumentMgr, ITfEditRecord, ITfLangBarItem, ITfLangBarItemMgr,
+            ITfSource, ITfTextEditSink, ITfTextEditSink_Impl, ITfTextInputProcessor,
+            ITfTextInputProcessor_Impl, ITfThreadMgr, ITfThreadMgrEventSink,
+            ITfThreadMgrEventSink_Impl, TF_GTP_INCL_TEXT, TF_INVALID_COOKIE,
         },
     },
 };
+
+use crate::languagebar::LangBarItemButton;
 
 #[implement(ITfTextInputProcessor, ITfThreadMgrEventSink, ITfTextEditSink)]
 pub struct TextService {
@@ -18,6 +21,7 @@ pub struct TextService {
     event_sink_cookie: RefCell<u32>,
     edit_sink_context: RefCell<Option<ITfContext>>,
     edit_sink_cookie: RefCell<u32>,
+    langbar_item: RefCell<Option<ITfLangBarItem>>,
 }
 
 impl TextService {
@@ -27,6 +31,7 @@ impl TextService {
             event_sink_cookie: RefCell::new(TF_INVALID_COOKIE),
             edit_sink_context: RefCell::new(None),
             edit_sink_cookie: RefCell::new(TF_INVALID_COOKIE),
+            langbar_item: RefCell::new(None),
         }
     }
 
@@ -69,6 +74,41 @@ impl TextService {
             self.edit_sink_cookie.replace(TF_INVALID_COOKIE);
         }
     }
+
+    fn init_language_bar(&self) {
+        log::trace!("TextService::init_language_bar");
+        let Ok(mgr) = self.thread_mgr.borrow().as_ref().unwrap().cast::<ITfLangBarItemMgr>() else {
+            return;
+        };
+
+        let item = LangBarItemButton::new();
+        let item: ITfLangBarItem = item.into();
+
+        unsafe {
+            if mgr.AddItem(&item).is_ok() {
+                self.langbar_item.replace(Some(item));
+            }
+        }
+    }
+
+    fn uninit_lang_bar(&self) {
+        log::trace!("TextService::uninit_lang_bar");
+        let Some(item) = self.langbar_item.replace(None) else {
+            return;
+        };
+
+        if let Ok(mgr) = self
+            .thread_mgr
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .cast::<ITfLangBarItemMgr>()
+        {
+            unsafe {
+                _ = mgr.RemoveItem(&item);
+            }
+        }
+    }
 }
 
 impl ITfTextInputProcessor_Impl for TextService {
@@ -97,6 +137,9 @@ impl ITfTextInputProcessor_Impl for TextService {
         if let Ok(doc_mgr) = doc_mgr {
             self.init_text_edit_sink(&doc_mgr);
         }
+
+        // Initialize Language Bar.
+        self.init_language_bar();
 
         S_OK.ok()
     }
@@ -128,6 +171,9 @@ impl ITfTextInputProcessor_Impl for TextService {
 
         self.event_sink_cookie.replace(TF_INVALID_COOKIE);
 
+        // Uninitialize Language Bar.
+        self.uninit_lang_bar();
+
         // We release the reference of the ITfThreadMgr
         self.thread_mgr.replace(None);
 
@@ -158,7 +204,7 @@ impl ITfThreadMgrEventSink_Impl for TextService {
         } else {
             self.uninit_text_edit_sink();
         }
-        
+
         S_OK.ok()
     }
 

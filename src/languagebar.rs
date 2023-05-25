@@ -9,7 +9,7 @@ use windows::{
     w,
     Win32::{
         Foundation::{BOOL, E_NOINTERFACE, E_NOTIMPL, POINT, RECT, S_OK},
-        System::Ole::{CONNECT_E_ADVISELIMIT, CONNECT_E_CANNOTCONNECT},
+        System::Ole::{CONNECT_E_ADVISELIMIT, CONNECT_E_CANNOTCONNECT, CONNECT_E_NOCONNECTION},
         UI::{
             TextServices::{
                 ITfLangBarItem, ITfLangBarItemButton, ITfLangBarItemButton_Impl,
@@ -67,6 +67,7 @@ impl LangBarItemButton {
 
 impl ITfLangBarItem_Impl for LangBarItemButton {
     fn GetInfo(&self, pinfo: *mut TF_LANGBARITEMINFO) -> Result<()> {
+        log::trace!("LangBarItemButton::GetInfo");
         unsafe {
             write(pinfo, self.info);
         }
@@ -75,14 +76,17 @@ impl ITfLangBarItem_Impl for LangBarItemButton {
     }
 
     fn GetStatus(&self) -> Result<u32> {
+        log::trace!("LangBarItemButton::GetStatus");
         Ok(0)
     }
 
     fn Show(&self, _fshow: BOOL) -> Result<()> {
+        log::trace!("LangBarItemButton::Show");
         E_NOTIMPL.ok()
     }
 
     fn GetTooltipString(&self) -> Result<BSTR> {
+        log::trace!("LangBarItemButton::GetTooltipString");
         let string: Vec<u16> = LANGBAR_ITEM_DESC.encode_utf16().chain(once(0)).collect();
 
         BSTR::from_wide(&string)
@@ -91,10 +95,12 @@ impl ITfLangBarItem_Impl for LangBarItemButton {
 
 impl ITfLangBarItemButton_Impl for LangBarItemButton {
     fn OnClick(&self, _click: TfLBIClick, _pt: &POINT, _prcarea: *const RECT) -> Result<()> {
+        log::trace!("LangBarItemButton::OnClick");
         S_OK.ok()
     }
 
     fn InitMenu(&self, pmenu: Option<&ITfMenu>) -> Result<()> {
+        log::trace!("LangBarItemButton::InitMenu");
         let menu = pmenu.unwrap();
         let desc0: Vec<u16> = MENU_ITEM_DESCRIPTION0
             .encode_utf16()
@@ -115,6 +121,7 @@ impl ITfLangBarItemButton_Impl for LangBarItemButton {
     }
 
     fn OnMenuSelect(&self, wid: u32) -> Result<()> {
+        log::trace!("LangBarItemButton::OnMenuSelect");
         // This is callback when the menu item is selected.
 
         match wid {
@@ -127,6 +134,7 @@ impl ITfLangBarItemButton_Impl for LangBarItemButton {
     }
 
     fn GetIcon(&self) -> Result<HICON> {
+        log::trace!("LangBarItemButton::GetIcon");
         let icon = unsafe {
             LoadImageW(
                 DLL_INSTANCE,
@@ -142,6 +150,7 @@ impl ITfLangBarItemButton_Impl for LangBarItemButton {
     }
 
     fn GetText(&self) -> Result<BSTR> {
+        log::trace!("LangBarItemButton::GetText");
         let string: Vec<u16> = LANGBAR_ITEM_DESC.encode_utf16().chain(once(0)).collect();
 
         BSTR::from_wide(&string)
@@ -150,9 +159,10 @@ impl ITfLangBarItemButton_Impl for LangBarItemButton {
 
 impl ITfSource_Impl for LangBarItemButton {
     fn AdviseSink(&self, riid: *const GUID, punk: Option<&IUnknown>) -> Result<u32> {
-        // We allow only ITfLangBarItemSink interface.
+        log::trace!("LangBarItemButton::AdviseSink");
         let iid = unsafe { *riid };
 
+        // We allow only ITfLangBarItemSink interface.
         if iid != ITfLangBarItemSink::IID {
             return Err(Error::from(CONNECT_E_CANNOTCONNECT));
         }
@@ -174,7 +184,20 @@ impl ITfSource_Impl for LangBarItemButton {
         return Ok(TEXTSERVICE_LANGBARITEMSINK_COOKIE);
     }
 
-    fn UnadviseSink(&self, _dwcookie: u32) -> Result<()> {
-        todo!()
+    fn UnadviseSink(&self, dwcookie: u32) -> Result<()> {
+        log::trace!("LangBarItemButton::UnadviseSink");
+        // Check the given cookie.
+        if dwcookie != TEXTSERVICE_LANGBARITEMSINK_COOKIE {
+            return Err(Error::from(CONNECT_E_NOCONNECTION));
+        }
+
+        // If there is no connected sink, we just fail.
+        if self.sink.borrow().is_none() {
+            return Err(Error::from(CONNECT_E_NOCONNECTION));
+        }
+
+        self.sink.replace(None);
+
+        S_OK.ok()
     }
 }
