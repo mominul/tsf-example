@@ -1,9 +1,12 @@
 use windows::{
-    core::{ComInterface, GUID},
+    core::{ComInterface, Result, GUID},
     Win32::{
         Foundation::HMODULE,
         System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER},
-        UI::TextServices::{CLSID_TF_InputProcessorProfiles, ITfInputProcessorProfiles},
+        UI::TextServices::{
+            CLSID_TF_CategoryMgr, CLSID_TF_InputProcessorProfiles, ITfCategoryMgr,
+            ITfInputProcessorProfiles, GUID_TFCAT_TIP_KEYBOARD,
+        },
     },
 };
 use winreg::{enums::HKEY_CLASSES_ROOT, RegKey};
@@ -16,7 +19,7 @@ use crate::{
     },
 };
 
-pub fn create_instance<T: ComInterface>(clsid: &GUID) -> windows::core::Result<T> {
+pub fn create_instance<T: ComInterface>(clsid: &GUID) -> Result<T> {
     unsafe { CoCreateInstance(clsid, None, CLSCTX_INPROC_SERVER) }
 }
 
@@ -41,7 +44,7 @@ pub fn unregister_server() -> std::io::Result<()> {
     RegKey::predef(HKEY_CLASSES_ROOT).delete_subkey_all(reg_path)
 }
 
-pub fn register_profile(handle: HMODULE) -> windows::core::Result<()> {
+pub fn register_profile(handle: HMODULE) -> Result<()> {
     let profiles: ITfInputProcessorProfiles = create_instance(&CLSID_TF_InputProcessorProfiles)?;
 
     unsafe { profiles.Register(&CLSID_TEXT_SERVICE)? };
@@ -63,11 +66,39 @@ pub fn register_profile(handle: HMODULE) -> windows::core::Result<()> {
     Ok(())
 }
 
-pub fn unregister_profile() -> windows::core::Result<()> {
+pub fn unregister_profile() -> Result<()> {
     let profiles: ITfInputProcessorProfiles = create_instance(&CLSID_TF_InputProcessorProfiles)?;
 
     unsafe {
         profiles.Unregister(&CLSID_TEXT_SERVICE)?;
+    }
+
+    Ok(())
+}
+
+pub fn register_categories() -> Result<()> {
+    let mgr: ITfCategoryMgr = create_instance(&CLSID_TF_CategoryMgr)?;
+
+    unsafe {
+        mgr.RegisterCategory(
+            &CLSID_TEXT_SERVICE,
+            &GUID_TFCAT_TIP_KEYBOARD,
+            &CLSID_TEXT_SERVICE,
+        )?;
+    }
+
+    Ok(())
+}
+
+pub fn unregister_categories() -> Result<()> {
+    let mgr: ITfCategoryMgr = create_instance(&CLSID_TF_CategoryMgr)?;
+
+    unsafe {
+        mgr.UnregisterCategory(
+            &CLSID_TEXT_SERVICE,
+            &GUID_TFCAT_TIP_KEYBOARD,
+            &CLSID_TEXT_SERVICE,
+        )?;
     }
 
     Ok(())

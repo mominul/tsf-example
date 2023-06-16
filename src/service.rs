@@ -5,9 +5,9 @@ use windows::{
     Win32::{
         Foundation::{E_FAIL, S_OK},
         UI::TextServices::{
-            ITfContext, ITfDocumentMgr, ITfEditRecord, ITfLangBarItem, ITfLangBarItemMgr,
-            ITfSource, ITfTextEditSink, ITfTextEditSink_Impl, ITfTextInputProcessor,
-            ITfTextInputProcessor_Impl, ITfThreadMgr, ITfThreadMgrEventSink,
+            ITfContext, ITfDocumentMgr, ITfEditRecord, ITfKeyEventSink, ITfKeystrokeMgr,
+            ITfLangBarItem, ITfLangBarItemMgr, ITfSource, ITfTextEditSink, ITfTextEditSink_Impl,
+            ITfTextInputProcessor, ITfTextInputProcessor_Impl, ITfThreadMgr, ITfThreadMgrEventSink,
             ITfThreadMgrEventSink_Impl, TF_GTP_INCL_TEXT, TF_INVALID_COOKIE,
         },
     },
@@ -15,13 +15,21 @@ use windows::{
 
 use crate::languagebar::LangBarItemButton;
 
-#[implement(ITfTextInputProcessor, ITfThreadMgrEventSink, ITfTextEditSink)]
+const TF_CLIENTID_NULL: u32 = 0;
+
+#[implement(
+    ITfTextInputProcessor,
+    ITfThreadMgrEventSink,
+    ITfTextEditSink,
+    ITfKeyEventSink
+)]
 pub struct TextService {
-    thread_mgr: RefCell<Option<ITfThreadMgr>>,
-    event_sink_cookie: RefCell<u32>,
-    edit_sink_context: RefCell<Option<ITfContext>>,
-    edit_sink_cookie: RefCell<u32>,
-    langbar_item: RefCell<Option<ITfLangBarItem>>,
+    pub thread_mgr: RefCell<Option<ITfThreadMgr>>,
+    pub event_sink_cookie: RefCell<u32>,
+    pub edit_sink_context: RefCell<Option<ITfContext>>,
+    pub edit_sink_cookie: RefCell<u32>,
+    pub langbar_item: RefCell<Option<ITfLangBarItem>>,
+    pub client_id: RefCell<u32>,
 }
 
 impl TextService {
@@ -32,7 +40,12 @@ impl TextService {
             edit_sink_context: RefCell::new(None),
             edit_sink_cookie: RefCell::new(TF_INVALID_COOKIE),
             langbar_item: RefCell::new(None),
+            client_id: RefCell::new(TF_CLIENTID_NULL),
         }
+    }
+
+    pub unsafe fn cast_to<I: ComInterface>(&self) -> Result<I> {
+        self.cast()
     }
 
     fn init_text_edit_sink(&self, doc_mgr: &ITfDocumentMgr) {
@@ -112,10 +125,11 @@ impl TextService {
 }
 
 impl ITfTextInputProcessor_Impl for TextService {
-    fn Activate(&self, ptim: Option<&ITfThreadMgr>, _tid: u32) -> Result<()> {
+    fn Activate(&self, ptim: Option<&ITfThreadMgr>, tid: u32) -> Result<()> {
         log::trace!("TextService::Activate");
         let thread_mgr = ptim.map(|v| v.clone());
         self.thread_mgr.replace(thread_mgr);
+        self.client_id.replace(tid);
 
         let source: ITfSource = self.thread_mgr.borrow().as_ref().unwrap().cast()?;
         let sink: ITfThreadMgrEventSink = unsafe { self.cast().unwrap() };
@@ -140,6 +154,9 @@ impl ITfTextInputProcessor_Impl for TextService {
 
         // Initialize Language Bar.
         self.init_language_bar();
+
+        // Initialize KeyEventSink
+        self.init_key_event_sink()?;
 
         S_OK.ok()
     }
@@ -174,8 +191,13 @@ impl ITfTextInputProcessor_Impl for TextService {
         // Uninitialize Language Bar.
         self.uninit_lang_bar();
 
+        // Uninitialize KeyEventSink
+        self.uninit_key_event_sink();
+
         // We release the reference of the ITfThreadMgr
         self.thread_mgr.replace(None);
+
+        self.client_id.replace(TF_CLIENTID_NULL);
 
         S_OK.ok()
     }

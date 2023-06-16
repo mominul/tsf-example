@@ -17,7 +17,10 @@ use windows::{
 use crate::{
     factory::ClassFactory,
     globals::{CLSID_TEXT_SERVICE, DLL_INSTANCE},
-    register::{register_profile, register_server, unregister_profile, unregister_server},
+    register::{
+        register_categories, register_profile, register_server, unregister_categories,
+        unregister_profile, unregister_server,
+    },
 };
 
 pub fn get_module_path(instance: HMODULE) -> Result<String, HRESULT> {
@@ -30,7 +33,10 @@ pub fn get_module_path(instance: HMODULE) -> Result<String, HRESULT> {
 #[allow(non_snake_case)]
 #[doc(hidden)]
 pub unsafe extern "system" fn DllRegisterServer() -> HRESULT {
-    if register_server(DLL_INSTANCE).is_ok() && register_profile(DLL_INSTANCE).is_ok() {
+    if register_server(DLL_INSTANCE).is_ok()
+        && register_profile(DLL_INSTANCE).is_ok()
+        && register_categories().is_ok()
+    {
         S_OK
     } else {
         _ = DllUnregisterServer(); // cleanup
@@ -42,7 +48,10 @@ pub unsafe extern "system" fn DllRegisterServer() -> HRESULT {
 #[allow(non_snake_case)]
 #[doc(hidden)]
 pub unsafe extern "system" fn DllUnregisterServer() -> HRESULT {
-    if unregister_server().is_ok() && unregister_profile().is_ok() {
+    if unregister_server().is_ok()
+        && unregister_profile().is_ok()
+        && unregister_categories().is_ok()
+    {
         S_OK
     } else {
         E_FAIL
@@ -63,17 +72,16 @@ pub extern "stdcall" fn DllMain(
         {
             // Add some value to the name of the log file to prevent overwriting
             let time = SystemTime::now();
-            let time = time.duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
+            let time = time
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
             let mut path: PathBuf = get_module_path(dll_instance).unwrap().into();
             path.pop();
             path.push(format!("debug-{}.log", time));
-            
+
             // Set up logging to the directory where the dll is present
-            simple_logging::log_to_file(
-                path,
-                log::LevelFilter::Trace,
-            )
-            .unwrap();
+            simple_logging::log_to_file(path, log::LevelFilter::Trace).unwrap();
         }
 
         unsafe {
