@@ -1,5 +1,8 @@
 use std::{ffi::c_void, path::PathBuf, time::SystemTime};
 
+use tracing::{Level, trace};
+use tracing_appender::rolling::{RollingFileAppender, Rotation};
+use tracing_subscriber::FmtSubscriber;
 use windows::{
     core::{ComInterface, IUnknown, GUID, HRESULT},
     Win32::{
@@ -63,17 +66,23 @@ pub extern "stdcall" fn DllMain(
         {
             // Add some value to the name of the log file to prevent overwriting
             let time = SystemTime::now();
-            let time = time.duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
+            let time = time
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
             let mut path: PathBuf = get_module_path(dll_instance).unwrap().into();
             path.pop();
-            path.push(format!("debug-{}.log", time));
-            
+
+            let name = format!("debug-{time}.log");
+
             // Set up logging to the directory where the dll is present
-            simple_logging::log_to_file(
-                path,
-                log::LevelFilter::Trace,
-            )
-            .unwrap();
+            let file_appender = RollingFileAppender::new(Rotation::NEVER, path, name);
+            let subscriber = FmtSubscriber::builder()
+                .with_max_level(Level::TRACE)
+                .with_ansi(false)
+                .with_writer(file_appender)
+                .finish();
+            tracing::subscriber::set_global_default(subscriber).unwrap();
         }
 
         unsafe {
@@ -91,24 +100,24 @@ pub unsafe extern "stdcall" fn DllGetClassObject(
     riid: *const GUID,
     pout: *mut *mut core::ffi::c_void,
 ) -> HRESULT {
-    log::trace!("DllGetClassObject");
-    log::trace!("riid {:?}", *riid);
-    log::trace!("rclsid {:?}", *rclsid);
-    log::trace!("IClassFactory {:?}", IClassFactory::IID);
-    log::trace!("IUnknown {:?}", IUnknown::IID);
-    log::trace!("TextService {:?}", CLSID_TEXT_SERVICE);
-    log::trace!("ITfTextInputProcessor {:?}", ITfTextInputProcessor::IID);
+    trace!("DllGetClassObject");
+    trace!("riid {:?}", *riid);
+    trace!("rclsid {:?}", *rclsid);
+    trace!("IClassFactory {:?}", IClassFactory::IID);
+    trace!("IUnknown {:?}", IUnknown::IID);
+    trace!("TextService {:?}", CLSID_TEXT_SERVICE);
+    trace!("ITfTextInputProcessor {:?}", ITfTextInputProcessor::IID);
 
     // Interface out pointer need to be set as null if error occurs.
     std::ptr::write(pout, std::ptr::null_mut());
 
     if *riid != IClassFactory::IID {
-        log::trace!("E_UNEXPECTED");
+        trace!("E_UNEXPECTED");
         return E_UNEXPECTED;
     }
 
     if *rclsid != CLSID_TEXT_SERVICE {
-        log::trace!("CLASS_E_CLASSNOTAVAILABLE");
+        trace!("CLASS_E_CLASSNOTAVAILABLE");
         return CLASS_E_CLASSNOTAVAILABLE;
     }
 
@@ -117,14 +126,14 @@ pub unsafe extern "stdcall" fn DllGetClassObject(
 
     std::ptr::write(pout, std::mem::transmute(factory));
 
-    log::trace!("Done DllGetClassObject");
+    trace!("Done DllGetClassObject");
 
     S_OK
 }
 
 #[no_mangle]
 pub extern "stdcall" fn DllCanUnloadNow() -> HRESULT {
-    log::trace!("DllCanUnloadNow");
+    trace!("DllCanUnloadNow");
 
     S_FALSE
 }

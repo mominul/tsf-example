@@ -1,5 +1,6 @@
 use std::{cell::RefCell, ptr::null_mut};
 
+use tracing::trace;
 use windows::{
     core::{implement, ComInterface, Result},
     Win32::{
@@ -36,7 +37,7 @@ impl TextService {
     }
 
     fn init_text_edit_sink(&self, doc_mgr: &ITfDocumentMgr) {
-        log::trace!("TextService::init_text_edit_sink");
+        trace!("TextService::init_text_edit_sink");
         // clear out any previous sink first
         self.uninit_text_edit_sink();
 
@@ -56,7 +57,7 @@ impl TextService {
     }
 
     fn uninit_text_edit_sink(&self) {
-        log::trace!("TextService::uninit_text_edit_sink");
+        trace!("TextService::uninit_text_edit_sink");
         if *self.edit_sink_cookie.borrow() != TF_INVALID_COOKIE {
             if let Ok(source) = self
                 .edit_sink_context
@@ -76,7 +77,7 @@ impl TextService {
     }
 
     fn init_language_bar(&self) {
-        log::trace!("TextService::init_language_bar");
+        trace!("TextService::init_language_bar");
         let Ok(mgr) = self.thread_mgr.borrow().as_ref().unwrap().cast::<ITfLangBarItemMgr>() else {
             return;
         };
@@ -92,7 +93,7 @@ impl TextService {
     }
 
     fn uninit_lang_bar(&self) {
-        log::trace!("TextService::uninit_lang_bar");
+        trace!("TextService::uninit_lang_bar");
         let Some(item) = self.langbar_item.replace(None) else {
             return;
         };
@@ -113,7 +114,7 @@ impl TextService {
 
 impl ITfTextInputProcessor_Impl for TextService {
     fn Activate(&self, ptim: Option<&ITfThreadMgr>, _tid: u32) -> Result<()> {
-        log::trace!("TextService::Activate");
+        trace!("TextService::Activate");
         let thread_mgr = ptim.map(|v| v.clone());
         self.thread_mgr.replace(thread_mgr);
 
@@ -123,11 +124,11 @@ impl ITfTextInputProcessor_Impl for TextService {
 
         if let Ok(cookie) = res {
             self.event_sink_cookie.replace(cookie);
-            log::trace!("TextService::Activate: Cookie set!");
+            trace!("TextService::Activate: Cookie set!");
         } else {
             self.event_sink_cookie.replace(TF_INVALID_COOKIE);
             _ = self.Deactivate(); // cleanup any half-finished init
-            log::trace!("TextService::Activate: Fail to set Cookie!");
+            trace!("TextService::Activate: Fail to set Cookie!");
             return E_FAIL.ok();
         }
 
@@ -145,14 +146,14 @@ impl ITfTextInputProcessor_Impl for TextService {
     }
 
     fn Deactivate(&self) -> Result<()> {
-        log::trace!("TextService::Deactivate");
+        trace!("TextService::Deactivate");
 
         // Unadvise TextEditSink if it is advised.
         self.uninit_text_edit_sink();
 
         // Uninitialize ThreadMgrEventSink.
         if *self.event_sink_cookie.borrow() == TF_INVALID_COOKIE {
-            log::trace!("TextService::Deactivate: Never advised");
+            trace!("TextService::Deactivate: Never advised");
             return S_OK.ok(); // never Advised
         }
 
@@ -165,7 +166,7 @@ impl ITfTextInputProcessor_Impl for TextService {
         {
             unsafe {
                 _ = source.UnadviseSink(*self.event_sink_cookie.borrow());
-                log::trace!("TextService::Deactivate: Unadvised!");
+                trace!("TextService::Deactivate: Unadvised!");
             }
         }
 
@@ -183,12 +184,12 @@ impl ITfTextInputProcessor_Impl for TextService {
 
 impl ITfThreadMgrEventSink_Impl for TextService {
     fn OnInitDocumentMgr(&self, _pdim: Option<&ITfDocumentMgr>) -> Result<()> {
-        log::trace!("TextService::OnInitDocumentMgr");
+        trace!("TextService::OnInitDocumentMgr");
         S_OK.ok()
     }
 
     fn OnUninitDocumentMgr(&self, _pdim: Option<&ITfDocumentMgr>) -> Result<()> {
-        log::trace!("TextService::OnUninitDocumentMgr");
+        trace!("TextService::OnUninitDocumentMgr");
         S_OK.ok()
     }
 
@@ -197,7 +198,7 @@ impl ITfThreadMgrEventSink_Impl for TextService {
         pdimfocus: Option<&ITfDocumentMgr>,
         _pdimprevfocus: Option<&ITfDocumentMgr>,
     ) -> Result<()> {
-        log::trace!("TextService::OnSetFocus");
+        trace!("TextService::OnSetFocus");
         // Whenever focus is changed, we initialize the TextEditSink.
         if let Some(doc_mgr) = pdimfocus {
             self.init_text_edit_sink(doc_mgr);
@@ -209,12 +210,12 @@ impl ITfThreadMgrEventSink_Impl for TextService {
     }
 
     fn OnPushContext(&self, _pic: Option<&ITfContext>) -> Result<()> {
-        log::trace!("TextService::OnPushContext");
+        trace!("TextService::OnPushContext");
         S_OK.ok()
     }
 
     fn OnPopContext(&self, _pic: Option<&ITfContext>) -> Result<()> {
-        log::trace!("TextService::OnPopContext");
+        trace!("TextService::OnPopContext");
         S_OK.ok()
     }
 }
@@ -226,7 +227,7 @@ impl ITfTextEditSink_Impl for TextService {
         _ecreadonly: u32,
         peditrecord: Option<&ITfEditRecord>,
     ) -> Result<()> {
-        log::trace!("TextService::OnEndEdit");
+        trace!("TextService::OnEndEdit");
         let record = peditrecord.unwrap();
 
         // did the selection change?
@@ -235,7 +236,7 @@ impl ITfTextEditSink_Impl for TextService {
         // there is no selection.
         if let Ok(selection_changed) = unsafe { record.GetSelectionStatus() } {
             if selection_changed.into() {
-                log::trace!("TextService::OnEndEdit: Selection changed");
+                trace!("TextService::OnEndEdit: Selection changed");
             }
         }
 
@@ -244,7 +245,7 @@ impl ITfTextEditSink_Impl for TextService {
         {
             let mut ranges = vec![None];
             if unsafe { text_changes.Next(&mut ranges, null_mut()).is_ok() } {
-                log::trace!("TextService::OnEndEdit: Updated range found");
+                trace!("TextService::OnEndEdit: Updated range found");
             }
         }
 

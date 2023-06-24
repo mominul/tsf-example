@@ -1,3 +1,4 @@
+use tracing::{instrument, trace};
 use windows::{
     core::{implement, ComInterface, IUnknown, Result, GUID},
     Win32::{
@@ -10,6 +11,7 @@ use windows::{
 use crate::service::TextService;
 
 #[implement(IClassFactory)]
+#[derive(Debug)]
 pub struct ClassFactory {
     //
 }
@@ -21,7 +23,7 @@ impl IClassFactory_Impl for ClassFactory {
         riid: *const GUID,
         ppvobject: *mut *mut core::ffi::c_void,
     ) -> Result<()> {
-        log::trace!("ClassFactory::CreateInstance");
+        trace!("ClassFactory::CreateInstance");
 
         if punkouter.is_some() {
             return CLASS_E_NOAGGREGATION.ok();
@@ -32,14 +34,14 @@ impl IClassFactory_Impl for ClassFactory {
                 let unknown: IUnknown = TextService::new().into();
                 unknown.query(&*riid, ppvobject as _).ok()
             } else {
-                log::trace!("Unknown IID: {:?}", *riid);
+                trace!("Unknown IID: {:?}", *riid);
                 E_NOINTERFACE.ok()
             }
         }
     }
 
     fn LockServer(&self, _flock: BOOL) -> Result<()> {
-        log::trace!("ClassFactory::LockServer");
+        trace!("ClassFactory::LockServer");
         S_OK.ok()
     }
 }
