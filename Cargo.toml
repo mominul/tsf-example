@@ -11,6 +11,7 @@ crate-type = ["cdylib"]
 simple-logging = "2"
 log = "0.4"
 winreg = "0.11"
+variant-rs = "0.3"
 
 [dependencies.windows]
 version = "0.48"

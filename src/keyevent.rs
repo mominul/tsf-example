@@ -1,12 +1,16 @@
+use std::convert::TryInto;
+
+use variant_rs::Variant;
 use windows::{
-    core::{Result, GUID, ComInterface},
+    core::{ComInterface, Result, GUID},
     Win32::{
         Foundation::{BOOL, LPARAM, S_OK, WPARAM},
         UI::{
             Input::KeyboardAndMouse::{VK_F6, VK_KANJI},
             TextServices::{
-                ITfContext, ITfKeyEventSink_Impl, TF_MOD_ALT, TF_MOD_IGNORE_ALL_MODIFIER,
-                TF_MOD_ON_KEYUP, TF_PRESERVEDKEY, ITfKeyEventSink, ITfKeystrokeMgr,
+                ITfCompartmentMgr, ITfContext, ITfKeyEventSink, ITfKeyEventSink_Impl,
+                ITfKeystrokeMgr, GUID_COMPARTMENT_EMPTYCONTEXT, GUID_COMPARTMENT_KEYBOARD_DISABLED,
+                TF_MOD_ALT, TF_MOD_IGNORE_ALL_MODIFIER, TF_MOD_ON_KEYUP, TF_PRESERVEDKEY,
             },
         },
     },
@@ -69,6 +73,97 @@ impl TextService {
             }
         }
     }
+
+    // Register a hot key.
+    pub fn init_preserved_key(&self) {
+        let Ok(mgr) = self.thread_mgr.borrow().as_ref().unwrap().cast::<ITfKeystrokeMgr>() else {
+            return;
+        };
+
+        let desc_onoff: Vec<u16> = KEY_ON_OFF_DESC.encode_utf16().collect();
+        let desc_f6: Vec<u16> = KEY_F6_DESC.encode_utf16().collect();
+
+        unsafe {
+            // register Alt+~ key
+            _ = mgr.PreserveKey(
+                *self.client_id.borrow(),
+                &GUID_PRESERVEDKEY_ONOFF,
+                &KEY_ON_OFF0,
+                &desc_onoff,
+            );
+            // register KANJI key
+            _ = mgr.PreserveKey(
+                *self.client_id.borrow(),
+                &GUID_PRESERVEDKEY_ONOFF,
+                &KEY_ON_OFF1,
+                &desc_onoff,
+            );
+            // register F6 key
+            _ = mgr.PreserveKey(
+                *self.client_id.borrow(),
+                &GUID_PRESERVEDKEY_F6,
+                &KEY_F6,
+                &desc_f6,
+            );
+        }
+    }
+
+    // Uninit a hot key.
+    pub fn uninit_preserved_key(&self) {
+        let Ok(mgr) = self.thread_mgr.borrow().as_ref().unwrap().cast::<ITfKeystrokeMgr>() else {
+            return;
+        };
+
+        unsafe {
+            _ = mgr.UnpreserveKey(&GUID_PRESERVEDKEY_ONOFF, &KEY_ON_OFF0);
+            _ = mgr.UnpreserveKey(&GUID_PRESERVEDKEY_ONOFF, &KEY_ON_OFF1);
+            _ = mgr.UnpreserveKey(&GUID_PRESERVEDKEY_F6, &KEY_F6);
+        }
+    }
+
+    /// GUID_COMPARTMENT_KEYBOARD_DISABLED is the compartment in the context
+    /// object.
+    pub fn is_keyboard_disabled(&self) -> bool {
+        unsafe {
+            let Ok(doc_focus) = self.thread_mgr.borrow().as_ref().unwrap().GetFocus() else {
+                // if there is no focus document manager object, the keyboard 
+                // is disabled.
+                return true;
+            };
+
+            let Ok(context) = doc_focus.GetTop() else {
+                // if there is no context object, the keyboard is disabled.
+                return true;
+            };
+
+            // Check GUID_COMPARTMENT_KEYBOARD_DISABLED.
+            if let Ok(comp_mgr) = context.cast::<ITfCompartmentMgr>() {
+                if let Ok(disabled) = comp_mgr.GetCompartment(&GUID_COMPARTMENT_KEYBOARD_DISABLED) {
+                    if let Ok(var) = disabled.GetValue() {
+                        let var: Variant = var.try_into().unwrap();
+                        if let Ok(val) = var.try_i32() {
+                            log::trace!("Got value CompartmentDisabled: {val}");
+                            return val != 0;
+                        }
+                    }
+                }
+            }
+
+            // Check GUID_COMPARTMENT_EMPTYCONTEXT.
+            if let Ok(comp_mgr) = context.cast::<ITfCompartmentMgr>() {
+                if let Ok(context) = comp_mgr.GetCompartment(&GUID_COMPARTMENT_EMPTYCONTEXT) {
+                    if let Ok(var) = context.GetValue() {
+                        let var: Variant = var.try_into().unwrap();
+                        if let Ok(val) = var.try_i32() {
+                            log::trace!("Got value CompartmentEmptyContext: {val}");
+                            return val != 0;
+                        }
+                    }
+                }
+            }
+        }
+        false
+    }
 }
 
 impl ITfKeyEventSink_Impl for TextService {
@@ -99,7 +194,12 @@ impl ITfKeyEventSink_Impl for TextService {
 
     // Called by the system to offer this service a keystroke.  If TRUE is returned,
     // the application will not handle the keystroke.
-    fn OnKeyDown(&self, _pic: Option<&ITfContext>, _wparam: WPARAM, _lparam: LPARAM) -> Result<BOOL> {
+    fn OnKeyDown(
+        &self,
+        _pic: Option<&ITfContext>,
+        _wparam: WPARAM,
+        _lparam: LPARAM,
+    ) -> Result<BOOL> {
         todo!()
     }
 

@@ -158,6 +158,9 @@ impl ITfTextInputProcessor_Impl for TextService {
         // Initialize KeyEventSink
         self.init_key_event_sink()?;
 
+        // Initialize PreservedKeys
+        self.init_preserved_key();
+
         S_OK.ok()
     }
 
@@ -193,6 +196,9 @@ impl ITfTextInputProcessor_Impl for TextService {
 
         // Uninitialize KeyEventSink
         self.uninit_key_event_sink();
+
+        // Uninitialize PreservedKeys
+        self.uninit_preserved_key();
 
         // We release the reference of the ITfThreadMgr
         self.thread_mgr.replace(None);
