@@ -1,4 +1,4 @@
-use tracing::{instrument, trace};
+use tracing::trace;
 use windows::{
     core::{implement, ComInterface, IUnknown, Result, GUID},
     Win32::{
@@ -17,13 +17,14 @@ pub struct ClassFactory {
 }
 
 impl IClassFactory_Impl for ClassFactory {
+    #[tracing::instrument]
     fn CreateInstance(
         &self,
         punkouter: Option<&IUnknown>,
         riid: *const GUID,
         ppvobject: *mut *mut core::ffi::c_void,
     ) -> Result<()> {
-        trace!("ClassFactory::CreateInstance");
+        trace!("Entered");
 
         if punkouter.is_some() {
             return CLASS_E_NOAGGREGATION.ok();
@@ -40,8 +41,9 @@ impl IClassFactory_Impl for ClassFactory {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     fn LockServer(&self, _flock: BOOL) -> Result<()> {
-        trace!("ClassFactory::LockServer");
+        trace!("Entered");
         S_OK.ok()
     }
 }

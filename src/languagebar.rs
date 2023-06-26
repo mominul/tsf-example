@@ -67,8 +67,9 @@ impl LangBarItemButton {
 }
 
 impl ITfLangBarItem_Impl for LangBarItemButton {
+    #[tracing::instrument(skip_all)]
     fn GetInfo(&self, pinfo: *mut TF_LANGBARITEMINFO) -> Result<()> {
-        trace!("LangBarItemButton::GetInfo");
+        trace!("Entered");
         unsafe {
             write(pinfo, self.info);
         }
@@ -76,18 +77,21 @@ impl ITfLangBarItem_Impl for LangBarItemButton {
         S_OK.ok()
     }
 
+    #[tracing::instrument(skip_all)]
     fn GetStatus(&self) -> Result<u32> {
-        trace!("LangBarItemButton::GetStatus");
+        trace!("Entered");
         Ok(0)
     }
 
+    #[tracing::instrument(skip_all)]
     fn Show(&self, _fshow: BOOL) -> Result<()> {
-        trace!("LangBarItemButton::Show");
+        trace!("Entered");
         E_NOTIMPL.ok()
     }
 
+    #[tracing::instrument(skip_all)]
     fn GetTooltipString(&self) -> Result<BSTR> {
-        trace!("LangBarItemButton::GetTooltipString");
+        trace!("Entered");
         let string: Vec<u16> = LANGBAR_ITEM_DESC.encode_utf16().chain(once(0)).collect();
 
         BSTR::from_wide(&string)
@@ -95,13 +99,15 @@ impl ITfLangBarItem_Impl for LangBarItemButton {
 }
 
 impl ITfLangBarItemButton_Impl for LangBarItemButton {
+    #[tracing::instrument(skip_all)]
     fn OnClick(&self, _click: TfLBIClick, _pt: &POINT, _prcarea: *const RECT) -> Result<()> {
-        trace!("LangBarItemButton::OnClick");
+        trace!("Entered");
         S_OK.ok()
     }
 
+    #[tracing::instrument(skip_all)]
     fn InitMenu(&self, pmenu: Option<&ITfMenu>) -> Result<()> {
-        trace!("LangBarItemButton::InitMenu");
+        trace!("Entered");
         let menu = pmenu.unwrap();
         let desc0: Vec<u16> = MENU_ITEM_DESCRIPTION0
             .encode_utf16()
@@ -121,8 +127,9 @@ impl ITfLangBarItemButton_Impl for LangBarItemButton {
         S_OK.ok()
     }
 
+    #[tracing::instrument(skip_all)]
     fn OnMenuSelect(&self, wid: u32) -> Result<()> {
-        trace!("LangBarItemButton::OnMenuSelect");
+        trace!("Entered");
         // This is callback when the menu item is selected.
 
         match wid {
@@ -134,8 +141,9 @@ impl ITfLangBarItemButton_Impl for LangBarItemButton {
         S_OK.ok()
     }
 
+    #[tracing::instrument(skip_all)]
     fn GetIcon(&self) -> Result<HICON> {
-        trace!("LangBarItemButton::GetIcon");
+        trace!("Entered");
         let icon = unsafe {
             LoadImageW(
                 DLL_INSTANCE,
@@ -150,8 +158,9 @@ impl ITfLangBarItemButton_Impl for LangBarItemButton {
         icon.map(|i| HICON(i.0))
     }
 
+    #[tracing::instrument(skip_all)]
     fn GetText(&self) -> Result<BSTR> {
-        trace!("LangBarItemButton::GetText");
+        trace!("Entered");
         let string: Vec<u16> = LANGBAR_ITEM_DESC.encode_utf16().chain(once(0)).collect();
 
         BSTR::from_wide(&string)
@@ -159,8 +168,9 @@ impl ITfLangBarItemButton_Impl for LangBarItemButton {
 }
 
 impl ITfSource_Impl for LangBarItemButton {
+    #[tracing::instrument(skip_all)]
     fn AdviseSink(&self, riid: *const GUID, punk: Option<&IUnknown>) -> Result<u32> {
-        trace!("LangBarItemButton::AdviseSink");
+        trace!("Entered");
         let iid = unsafe { *riid };
 
         // We allow only ITfLangBarItemSink interface.
@@ -185,8 +195,9 @@ impl ITfSource_Impl for LangBarItemButton {
         return Ok(TEXTSERVICE_LANGBARITEMSINK_COOKIE);
     }
 
+    #[tracing::instrument(skip_all)]
     fn UnadviseSink(&self, dwcookie: u32) -> Result<()> {
-        trace!("LangBarItemButton::UnadviseSink");
+        trace!("Entered");
         // Check the given cookie.
         if dwcookie != TEXTSERVICE_LANGBARITEMSINK_COOKIE {
             return Err(Error::from(CONNECT_E_NOCONNECTION));
