@@ -5,7 +5,7 @@ use windows::{
     Win32::{
         Foundation::{E_FAIL, S_OK},
         UI::TextServices::{
-            ITfContext, ITfDocumentMgr, ITfEditRecord, ITfKeyEventSink, ITfKeystrokeMgr,
+            ITfContext, ITfDocumentMgr, ITfEditRecord, ITfKeyEventSink,
             ITfLangBarItem, ITfLangBarItemMgr, ITfSource, ITfTextEditSink, ITfTextEditSink_Impl,
             ITfTextInputProcessor, ITfTextInputProcessor_Impl, ITfThreadMgr, ITfThreadMgrEventSink,
             ITfThreadMgrEventSink_Impl, TF_GTP_INCL_TEXT, TF_INVALID_COOKIE,
@@ -94,7 +94,7 @@ impl TextService {
             return;
         };
 
-        let item = LangBarItemButton::new();
+        let item = LangBarItemButton::new(self);
         let item: ITfLangBarItem = item.into();
 
         unsafe {

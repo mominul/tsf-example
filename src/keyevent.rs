@@ -1,16 +1,18 @@
-use std::convert::TryInto;
+use std::{convert::TryInto, iter::once};
 
 use variant_rs::Variant;
 use windows::{
     core::{ComInterface, Result, GUID},
     Win32::{
-        Foundation::{BOOL, LPARAM, S_OK, WPARAM},
+        Foundation::{BOOL, E_FAIL, LPARAM, S_OK, WPARAM},
+        System::Com::VARIANT,
         UI::{
             Input::KeyboardAndMouse::{VK_F6, VK_KANJI},
             TextServices::{
                 ITfCompartmentMgr, ITfContext, ITfKeyEventSink, ITfKeyEventSink_Impl,
                 ITfKeystrokeMgr, GUID_COMPARTMENT_EMPTYCONTEXT, GUID_COMPARTMENT_KEYBOARD_DISABLED,
-                TF_MOD_ALT, TF_MOD_IGNORE_ALL_MODIFIER, TF_MOD_ON_KEYUP, TF_PRESERVEDKEY,
+                GUID_COMPARTMENT_KEYBOARD_OPENCLOSE, TF_MOD_ALT, TF_MOD_IGNORE_ALL_MODIFIER,
+                TF_MOD_ON_KEYUP, TF_PRESERVEDKEY,
             },
         },
     },
@@ -44,6 +46,7 @@ const KEY_F6_DESC: &str = "Function 6";
 
 impl TextService {
     pub fn init_key_event_sink(&self) -> Result<()> {
+        log::trace!("TextService::init_key_event_sink");
         if let Ok(mgr) = self
             .thread_mgr
             .borrow()
@@ -61,6 +64,7 @@ impl TextService {
     }
 
     pub fn uninit_key_event_sink(&self) {
+        log::trace!("TextService::uninit_key_event_sink");
         if let Ok(mgr) = self
             .thread_mgr
             .borrow()
@@ -76,12 +80,13 @@ impl TextService {
 
     // Register a hot key.
     pub fn init_preserved_key(&self) {
+        log::trace!("TextService::init_preserved_key");
         let Ok(mgr) = self.thread_mgr.borrow().as_ref().unwrap().cast::<ITfKeystrokeMgr>() else {
             return;
         };
 
-        let desc_onoff: Vec<u16> = KEY_ON_OFF_DESC.encode_utf16().collect();
-        let desc_f6: Vec<u16> = KEY_F6_DESC.encode_utf16().collect();
+        let desc_onoff: Vec<u16> = KEY_ON_OFF_DESC.encode_utf16().chain(once(0)).collect();
+        let desc_f6: Vec<u16> = KEY_F6_DESC.encode_utf16().chain(once(0)).collect();
 
         unsafe {
             // register Alt+~ key
@@ -110,6 +115,7 @@ impl TextService {
 
     // Uninit a hot key.
     pub fn uninit_preserved_key(&self) {
+        log::trace!("TextService::uninit_preserved_key");
         let Ok(mgr) = self.thread_mgr.borrow().as_ref().unwrap().cast::<ITfKeystrokeMgr>() else {
             return;
         };
@@ -124,6 +130,7 @@ impl TextService {
     /// GUID_COMPARTMENT_KEYBOARD_DISABLED is the compartment in the context
     /// object.
     pub fn is_keyboard_disabled(&self) -> bool {
+        log::trace!("TextService::is_keyboard_disabled");
         unsafe {
             let Ok(doc_focus) = self.thread_mgr.borrow().as_ref().unwrap().GetFocus() else {
                 // if there is no focus document manager object, the keyboard 
@@ -164,11 +171,82 @@ impl TextService {
         }
         false
     }
+
+    // GUID_COMPARTMENT_KEYBOARD_OPENCLOSE is the compartment in the thread manager
+    // object.
+    pub fn is_keyboard_open(&self) -> bool {
+        log::trace!("TextService::is_keyboard_open");
+        unsafe {
+            if let Ok(comp_mgr) = self
+                .thread_mgr
+                .borrow()
+                .as_ref()
+                .unwrap()
+                .cast::<ITfCompartmentMgr>()
+            {
+                if let Ok(compartment) =
+                    comp_mgr.GetCompartment(&GUID_COMPARTMENT_KEYBOARD_OPENCLOSE)
+                {
+                    if let Ok(var) = compartment.GetValue() {
+                        let var: Variant = var.try_into().unwrap();
+                        if let Ok(val) = var.try_i32() {
+                            log::trace!("Got value Compartment_KEYBOARD_OPENCLOSE: {val}");
+                            return val != 0;
+                        }
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    // GUID_COMPARTMENT_KEYBOARD_OPENCLOSE is the compartment in the thread manager
+    // object.
+    pub fn set_keyboard_open(&self, open: bool) -> Result<()> {
+        log::trace!("TextService::set_keyboard_open");
+        unsafe {
+            if let Ok(comp_mgr) = self
+                .thread_mgr
+                .borrow()
+                .as_ref()
+                .unwrap()
+                .cast::<ITfCompartmentMgr>()
+            {
+                if let Ok(compartment) =
+                    comp_mgr.GetCompartment(&GUID_COMPARTMENT_KEYBOARD_OPENCLOSE)
+                {
+                    let var = Variant::I32(open.into());
+                    let var: VARIANT = var.try_into().unwrap();
+                    compartment.SetValue(*self.client_id.borrow(), &var)?;
+                    return S_OK.ok();
+                }
+            }
+        }
+
+        E_FAIL.ok()
+    }
+
+    fn is_key_eaten(&self, param: WPARAM) -> bool {
+        log::trace!("TextService::is_key_eaten");
+        // if the keyboard is disabled, we don't eat keys.
+        if self.is_keyboard_disabled() {
+            return false;
+        }
+
+        if !self.is_keyboard_open() {
+            return false;
+        }
+
+        // we're only interested in VK_A - VK_Z, when this is open.
+        // is on
+        (param.0 >= b'A'.into()) && (param.0 <= b'Z'.into())
+    }
 }
 
 impl ITfKeyEventSink_Impl for TextService {
     // Called by the system whenever this service gets the keystroke device focus.
     fn OnSetFocus(&self, _fforeground: BOOL) -> Result<()> {
+        log::trace!("TextService::OnSetFocus");
         S_OK.ok()
     }
 
@@ -176,20 +254,22 @@ impl ITfKeyEventSink_Impl for TextService {
     fn OnTestKeyDown(
         &self,
         _pic: Option<&ITfContext>,
-        _wparam: WPARAM,
+        wparam: WPARAM,
         _lparam: LPARAM,
     ) -> Result<BOOL> {
-        todo!()
+        log::trace!("TextService::OnTestKeyDown");
+        Ok(self.is_key_eaten(wparam).into())
     }
 
     // Called by the system to query this service wants a potential keystroke.
     fn OnTestKeyUp(
         &self,
         _pic: Option<&ITfContext>,
-        _wparam: WPARAM,
+        wparam: WPARAM,
         _lparam: LPARAM,
     ) -> Result<BOOL> {
-        todo!()
+        log::trace!("TextService::OnTestKeyUp");
+        Ok(self.is_key_eaten(wparam).into())
     }
 
     // Called by the system to offer this service a keystroke.  If TRUE is returned,
@@ -197,20 +277,29 @@ impl ITfKeyEventSink_Impl for TextService {
     fn OnKeyDown(
         &self,
         _pic: Option<&ITfContext>,
-        _wparam: WPARAM,
+        wparam: WPARAM,
         _lparam: LPARAM,
     ) -> Result<BOOL> {
-        todo!()
+        log::trace!("TextService::OnKeyDown");
+        Ok(self.is_key_eaten(wparam).into())
     }
 
     // Called by the system to offer this service a keystroke.  If TRUE is returned,
     // the application will not handle the keystroke.
-    fn OnKeyUp(&self, _pic: Option<&ITfContext>, _wparam: WPARAM, _lparam: LPARAM) -> Result<BOOL> {
-        todo!()
+    fn OnKeyUp(&self, _pic: Option<&ITfContext>, wparam: WPARAM, _lparam: LPARAM) -> Result<BOOL> {
+        log::trace!("TextService::OnKeyUp");
+        Ok(self.is_key_eaten(wparam).into())
     }
 
     // Called when a hotkey (registered by us, or by the system) is typed.
-    fn OnPreservedKey(&self, _pic: Option<&ITfContext>, _rguid: *const GUID) -> Result<BOOL> {
-        todo!()
+    fn OnPreservedKey(&self, _pic: Option<&ITfContext>, rguid: *const GUID) -> Result<BOOL> {
+        log::trace!("TextService::OnPreservedKey");
+        if unsafe { *rguid } == GUID_PRESERVEDKEY_ONOFF {
+            let open = self.is_keyboard_open();
+            _ = self.set_keyboard_open(!open);
+            Ok(true.into())
+        } else {
+            Ok(false.into())
+        }
     }
 }

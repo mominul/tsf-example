@@ -14,15 +14,17 @@ use windows::{
             TextServices::{
                 ITfLangBarItem, ITfLangBarItemButton, ITfLangBarItemButton_Impl,
                 ITfLangBarItemSink, ITfLangBarItem_Impl, ITfMenu, ITfSource, ITfSource_Impl,
-                TfLBIClick, TF_LANGBARITEMINFO, TF_LBI_STYLE_BTN_MENU,
+                TfLBIClick, TF_LANGBARITEMINFO, TF_LBI_STYLE_BTN_MENU, TF_LBMENUF_CHECKED,
+                TF_LBMENUF_GRAYED,
             },
             WindowsAndMessaging::{LoadImageW, HICON, IMAGE_FLAGS, IMAGE_ICON},
         },
     },
 };
 
-use crate::globals::{
-    CLSID_TEXT_SERVICE, DLL_INSTANCE, GUID_LANGBAR_ITEM_BUTTON, LANGBAR_ITEM_DESC,
+use crate::{
+    globals::{CLSID_TEXT_SERVICE, DLL_INSTANCE, GUID_LANGBAR_ITEM_BUTTON, LANGBAR_ITEM_DESC},
+    service::TextService,
 };
 
 // The cookie for the sink to CLangBarItemButton.
@@ -31,19 +33,22 @@ pub const TEXTSERVICE_LANGBARITEMSINK_COOKIE: u32 = 0x0fab0fab;
 // The ids of the menu item of the language bar button.
 const MENUITEM_INDEX_0: u32 = 0;
 const MENUITEM_INDEX_1: u32 = 1;
+const MENUITEM_INDEX_OPENCLOSE: u32 = 2;
 
 // The descriptions of the menu item of the language bar button.
-const MENU_ITEM_DESCRIPTION0: &str = "Menu Item Description 0";
-const MENU_ITEM_DESCRIPTION1: &str = "Menu Item Description 1";
+const MENU_ITEM_DESCRIPTION_0: &str = "Menu Item Description 0";
+const MENU_ITEM_DESCRIPTION_1: &str = "Menu Item Description 1";
+const MENU_ITEM_DESCRIPTION_OPEN_CLOSE: &str = "Open";
 
 #[implement(ITfLangBarItem, ITfLangBarItemButton, ITfSource)]
-pub struct LangBarItemButton {
+pub struct LangBarItemButton<'a> {
     sink: RefCell<Option<ITfLangBarItemSink>>,
     info: TF_LANGBARITEMINFO,
+    service: &'a TextService,
 }
 
-impl LangBarItemButton {
-    pub fn new() -> Self {
+impl<'a> LangBarItemButton<'a> {
+    pub fn new(service: &'a TextService) -> Self {
         let desc: Vec<u16> = LANGBAR_ITEM_DESC
             .encode_utf16()
             .chain(repeat(0))
@@ -61,11 +66,12 @@ impl LangBarItemButton {
         Self {
             sink: RefCell::new(None),
             info,
+            service,
         }
     }
 }
 
-impl ITfLangBarItem_Impl for LangBarItemButton {
+impl<'a> ITfLangBarItem_Impl for LangBarItemButton<'a> {
     fn GetInfo(&self, pinfo: *mut TF_LANGBARITEMINFO) -> Result<()> {
         log::trace!("LangBarItemButton::GetInfo");
         unsafe {
@@ -93,7 +99,7 @@ impl ITfLangBarItem_Impl for LangBarItemButton {
     }
 }
 
-impl ITfLangBarItemButton_Impl for LangBarItemButton {
+impl<'a> ITfLangBarItemButton_Impl for LangBarItemButton<'a> {
     fn OnClick(&self, _click: TfLBIClick, _pt: &POINT, _prcarea: *const RECT) -> Result<()> {
         log::trace!("LangBarItemButton::OnClick");
         S_OK.ok()
@@ -102,11 +108,15 @@ impl ITfLangBarItemButton_Impl for LangBarItemButton {
     fn InitMenu(&self, pmenu: Option<&ITfMenu>) -> Result<()> {
         log::trace!("LangBarItemButton::InitMenu");
         let menu = pmenu.unwrap();
-        let desc0: Vec<u16> = MENU_ITEM_DESCRIPTION0
+        let desc0: Vec<u16> = MENU_ITEM_DESCRIPTION_0
             .encode_utf16()
             .chain(once(0))
             .collect();
-        let desc1: Vec<u16> = MENU_ITEM_DESCRIPTION1
+        let desc1: Vec<u16> = MENU_ITEM_DESCRIPTION_1
+            .encode_utf16()
+            .chain(once(0))
+            .collect();
+        let desc_open_close: Vec<u16> = MENU_ITEM_DESCRIPTION_OPEN_CLOSE
             .encode_utf16()
             .chain(once(0))
             .collect();
@@ -115,6 +125,22 @@ impl ITfLangBarItemButton_Impl for LangBarItemButton {
         unsafe {
             _ = menu.AddMenuItem(MENUITEM_INDEX_0, 0, None, None, &desc0, null_mut());
             _ = menu.AddMenuItem(MENUITEM_INDEX_1, 0, None, None, &desc1, null_mut());
+            // Add the keyboard open close item.
+            let mut flags = 0;
+            if self.service.is_keyboard_disabled() {
+                flags |= TF_LBMENUF_GRAYED;
+            } else if self.service.is_keyboard_open() {
+                flags |= TF_LBMENUF_CHECKED;
+            }
+
+            _ = menu.AddMenuItem(
+                MENUITEM_INDEX_OPENCLOSE,
+                flags,
+                None,
+                None,
+                &desc_open_close,
+                null_mut(),
+            );
         }
 
         S_OK.ok()
@@ -127,6 +153,10 @@ impl ITfLangBarItemButton_Impl for LangBarItemButton {
         match wid {
             MENUITEM_INDEX_0 => (),
             MENUITEM_INDEX_1 => (),
+            MENUITEM_INDEX_OPENCLOSE => {
+                let open = self.service.is_keyboard_open();
+                _ = self.service.set_keyboard_open(!open);
+            }
             _ => (),
         }
 
@@ -157,7 +187,7 @@ impl ITfLangBarItemButton_Impl for LangBarItemButton {
     }
 }
 
-impl ITfSource_Impl for LangBarItemButton {
+impl<'a> ITfSource_Impl for LangBarItemButton<'a> {
     fn AdviseSink(&self, riid: *const GUID, punk: Option<&IUnknown>) -> Result<u32> {
         log::trace!("LangBarItemButton::AdviseSink");
         let iid = unsafe { *riid };
