@@ -48,14 +48,11 @@ pub unsafe extern "system" fn DllRegisterServer() -> HRESULT {
 #[allow(non_snake_case)]
 #[doc(hidden)]
 pub unsafe extern "system" fn DllUnregisterServer() -> HRESULT {
-    if unregister_server().is_ok()
-        && unregister_profile().is_ok()
-        && unregister_categories().is_ok()
-    {
-        S_OK
-    } else {
-        E_FAIL
-    }
+    _ = unregister_server();
+    _ = unregister_profile();
+    _ = unregister_categories();
+
+    S_OK
 }
 
 #[no_mangle]

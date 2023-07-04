@@ -3,7 +3,7 @@
 $var = $args[0]
 
 if($var -eq "s") {
-    & 'C:\Program Files\Oracle\VirtualBox\VBoxManage.exe' controlvm "Win10" poweroff
+    & 'C:\Program Files\Oracle\VirtualBox\VBoxManage.exe' controlvm "Win 10" poweroff
     Exit
 }
 
@@ -12,5 +12,5 @@ Remove-Item .\vm\TextService.dll
 Remove-Item .\vm\*.log
 Copy-Item .\target\debug\TextService.dll .\vm
 
-& 'C:\Program Files\Oracle\VirtualBox\VBoxManage.exe' controlvm "Win10" poweroff
-& 'C:\Program Files\Oracle\VirtualBox\VBoxManage.exe' startvm "Win10"
+& 'C:\Program Files\Oracle\VirtualBox\VBoxManage.exe' controlvm "Win 10" poweroff
+& 'C:\Program Files\Oracle\VirtualBox\VBoxManage.exe' startvm "Win 10"
