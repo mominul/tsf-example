@@ -1,19 +1,21 @@
-use std::{cell::RefCell, ptr::null_mut};
+use std::{cell::RefCell, mem::ManuallyDrop, ptr::null_mut};
 
 use windows::{
     core::{implement, ComInterface, Result},
     Win32::{
         Foundation::{E_FAIL, S_OK},
         UI::TextServices::{
-            ITfContext, ITfDocumentMgr, ITfEditRecord, ITfKeyEventSink,
-            ITfLangBarItem, ITfLangBarItemMgr, ITfSource, ITfTextEditSink, ITfTextEditSink_Impl,
-            ITfTextInputProcessor, ITfTextInputProcessor_Impl, ITfThreadMgr, ITfThreadMgrEventSink,
+            ITfComposition, ITfCompositionSink, ITfCompositionSink_Impl, ITfContext,
+            ITfDocumentMgr, ITfEditRecord, ITfKeyEventSink, ITfLangBarItem, ITfLangBarItemMgr,
+            ITfSource, ITfTextEditSink, ITfTextEditSink_Impl, ITfTextInputProcessor,
+            ITfTextInputProcessor_Impl, ITfThreadMgr, ITfThreadMgrEventSink,
             ITfThreadMgrEventSink_Impl, TF_GTP_INCL_TEXT, TF_INVALID_COOKIE,
+            TF_SELECTION,
         },
     },
 };
 
-use crate::languagebar::LangBarItemButton;
+use crate::{keyhandler::is_range_covered, languagebar::LangBarItemButton};
 
 const TF_CLIENTID_NULL: u32 = 0;
 
@@ -21,7 +23,8 @@ const TF_CLIENTID_NULL: u32 = 0;
     ITfTextInputProcessor,
     ITfThreadMgrEventSink,
     ITfTextEditSink,
-    ITfKeyEventSink
+    ITfKeyEventSink,
+    ITfCompositionSink
 )]
 pub struct TextService {
     pub thread_mgr: RefCell<Option<ITfThreadMgr>>,
@@ -30,6 +33,7 @@ pub struct TextService {
     pub edit_sink_cookie: RefCell<u32>,
     pub langbar_item: RefCell<Option<ITfLangBarItem>>,
     pub client_id: RefCell<u32>,
+    pub composition: RefCell<Option<ITfComposition>>,
 }
 
 impl TextService {
@@ -41,6 +45,7 @@ impl TextService {
             edit_sink_cookie: RefCell::new(TF_INVALID_COOKIE),
             langbar_item: RefCell::new(None),
             client_id: RefCell::new(TF_CLIENTID_NULL),
+            composition: RefCell::new(None),
         }
     }
 
@@ -121,6 +126,14 @@ impl TextService {
                 _ = mgr.RemoveItem(&item);
             }
         }
+    }
+
+    pub fn is_composing(&self) -> bool {
+        self.composition.borrow().is_some()
+    }
+
+    pub fn set_composition(&self, composition: ITfComposition) {
+        self.composition.replace(Some(composition));
     }
 }
 
@@ -250,8 +263,8 @@ impl ITfThreadMgrEventSink_Impl for TextService {
 impl ITfTextEditSink_Impl for TextService {
     fn OnEndEdit(
         &self,
-        _pic: Option<&ITfContext>,
-        _ecreadonly: u32,
+        context: Option<&ITfContext>,
+        ecreadonly: u32,
         peditrecord: Option<&ITfEditRecord>,
     ) -> Result<()> {
         log::trace!("TextService::OnEndEdit");
@@ -264,6 +277,31 @@ impl ITfTextEditSink_Impl for TextService {
         if let Ok(selection_changed) = unsafe { record.GetSelectionStatus() } {
             if selection_changed.into() {
                 log::trace!("TextService::OnEndEdit: Selection changed");
+                // If the selection is moved to out side of the current composition,
+                // we terminate the composition. This TextService supports only one
+                // composition in one context object.
+                if self.is_composing() {
+                    let mut fetched: u32 = 0;
+                    let mut selection = [TF_SELECTION::default()];
+                    unsafe {
+                        // TF_DEFAULT_SELECTION == u32::MAX
+                        if context
+                            .unwrap()
+                            .GetSelection(ecreadonly, u32::MAX, &mut selection, &mut fetched)
+                            .is_ok()
+                        {
+                            if let Ok(range) =
+                                self.composition.borrow().as_ref().unwrap().GetRange()
+                            {
+                                let [selection] = selection;
+                                let range_test = ManuallyDrop::into_inner(selection.range).unwrap();
+                                if !is_range_covered(ecreadonly, range_test, range) {
+                                    todo!() // _EndComposition(pContext);
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -274,6 +312,21 @@ impl ITfTextEditSink_Impl for TextService {
             if unsafe { text_changes.Next(&mut ranges, null_mut()).is_ok() } {
                 log::trace!("TextService::OnEndEdit: Updated range found");
             }
+        }
+
+        S_OK.ok()
+    }
+}
+
+impl ITfCompositionSink_Impl for TextService {
+    fn OnCompositionTerminated(
+        &self,
+        _ecwrite: u32,
+        _pcomposition: Option<&ITfComposition>,
+    ) -> Result<()> {
+        // release our cached composition
+        if self.composition.borrow().is_some() {
+            self.composition.replace(None);
         }
 
         S_OK.ok()
