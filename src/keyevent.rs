@@ -1,11 +1,9 @@
-use std::{convert::TryInto, iter::once};
+use std::iter::once;
 
-use variant_rs::Variant;
 use windows::{
-    core::{ComInterface, Result, GUID},
+    core::{Interface, Result, GUID, VARIANT},
     Win32::{
         Foundation::{BOOL, E_FAIL, LPARAM, S_OK, WPARAM},
-        System::Com::VARIANT,
         UI::{
             Input::KeyboardAndMouse::{VK_F6, VK_KANJI},
             TextServices::{
@@ -18,7 +16,7 @@ use windows::{
     },
 };
 
-use crate::service::TextService;
+use crate::service::{TextService, TextService_Impl};
 
 const GUID_PRESERVEDKEY_ONOFF: GUID = GUID::from_u128(0x6a0bde41_6adf_11d7_a6ea_00065b84435c);
 const GUID_PRESERVEDKEY_F6: GUID = GUID::from_u128(0x6a0bde42_6adf_11d7_a6ea_00065b84435c);
@@ -81,7 +79,13 @@ impl TextService {
     // Register a hot key.
     pub fn init_preserved_key(&self) {
         log::trace!("TextService::init_preserved_key");
-        let Ok(mgr) = self.thread_mgr.borrow().as_ref().unwrap().cast::<ITfKeystrokeMgr>() else {
+        let Ok(mgr) = self
+            .thread_mgr
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .cast::<ITfKeystrokeMgr>()
+        else {
             return;
         };
 
@@ -116,7 +120,13 @@ impl TextService {
     // Uninit a hot key.
     pub fn uninit_preserved_key(&self) {
         log::trace!("TextService::uninit_preserved_key");
-        let Ok(mgr) = self.thread_mgr.borrow().as_ref().unwrap().cast::<ITfKeystrokeMgr>() else {
+        let Ok(mgr) = self
+            .thread_mgr
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .cast::<ITfKeystrokeMgr>()
+        else {
             return;
         };
 
@@ -133,7 +143,7 @@ impl TextService {
         log::trace!("TextService::is_keyboard_disabled");
         unsafe {
             let Ok(doc_focus) = self.thread_mgr.borrow().as_ref().unwrap().GetFocus() else {
-                // if there is no focus document manager object, the keyboard 
+                // if there is no focus document manager object, the keyboard
                 // is disabled.
                 return true;
             };
@@ -147,8 +157,7 @@ impl TextService {
             if let Ok(comp_mgr) = context.cast::<ITfCompartmentMgr>() {
                 if let Ok(disabled) = comp_mgr.GetCompartment(&GUID_COMPARTMENT_KEYBOARD_DISABLED) {
                     if let Ok(var) = disabled.GetValue() {
-                        let var: Variant = var.try_into().unwrap();
-                        if let Ok(val) = var.try_i32() {
+                        if let Ok(val) = i32::try_from(&var) {
                             log::trace!("Got value CompartmentDisabled: {val}");
                             return val != 0;
                         }
@@ -160,8 +169,7 @@ impl TextService {
             if let Ok(comp_mgr) = context.cast::<ITfCompartmentMgr>() {
                 if let Ok(context) = comp_mgr.GetCompartment(&GUID_COMPARTMENT_EMPTYCONTEXT) {
                     if let Ok(var) = context.GetValue() {
-                        let var: Variant = var.try_into().unwrap();
-                        if let Ok(val) = var.try_i32() {
+                        if let Ok(val) = i32::try_from(&var) {
                             log::trace!("Got value CompartmentEmptyContext: {val}");
                             return val != 0;
                         }
@@ -188,8 +196,7 @@ impl TextService {
                     comp_mgr.GetCompartment(&GUID_COMPARTMENT_KEYBOARD_OPENCLOSE)
                 {
                     if let Ok(var) = compartment.GetValue() {
-                        let var: Variant = var.try_into().unwrap();
-                        if let Ok(val) = var.try_i32() {
+                        if let Ok(val) = i32::try_from(&var) {
                             log::trace!("Got value Compartment_KEYBOARD_OPENCLOSE: {val}");
                             return val != 0;
                         }
@@ -215,8 +222,8 @@ impl TextService {
                 if let Ok(compartment) =
                     comp_mgr.GetCompartment(&GUID_COMPARTMENT_KEYBOARD_OPENCLOSE)
                 {
-                    let var = Variant::I32(open.into());
-                    let var: VARIANT = var.try_into().unwrap();
+                    let open: i32 = open.into();
+                    let var = VARIANT::from(open);
                     compartment.SetValue(*self.client_id.borrow(), &var)?;
                     return S_OK.ok();
                 }
@@ -243,7 +250,7 @@ impl TextService {
     }
 }
 
-impl ITfKeyEventSink_Impl for TextService {
+impl ITfKeyEventSink_Impl for TextService_Impl {
     // Called by the system whenever this service gets the keystroke device focus.
     fn OnSetFocus(&self, _fforeground: BOOL) -> Result<()> {
         log::trace!("TextService::OnSetFocus");

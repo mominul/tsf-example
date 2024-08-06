@@ -1,5 +1,5 @@
 use windows::{
-    core::{implement, ComInterface, IUnknown, Result, GUID},
+    core::{implement, IUnknown, Interface, Result, GUID},
     Win32::{
         Foundation::{BOOL, CLASS_E_NOAGGREGATION, E_NOINTERFACE, S_OK},
         System::Com::{IClassFactory, IClassFactory_Impl},
@@ -14,7 +14,7 @@ pub struct ClassFactory {
     //
 }
 
-impl IClassFactory_Impl for ClassFactory {
+impl IClassFactory_Impl for ClassFactory_Impl {
     fn CreateInstance(
         &self,
         punkouter: Option<&IUnknown>,

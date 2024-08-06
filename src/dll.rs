@@ -1,7 +1,7 @@
 use std::{ffi::c_void, path::PathBuf, time::SystemTime};
 
 use windows::{
-    core::{ComInterface, IUnknown, GUID, HRESULT},
+    core::{IUnknown, Interface, GUID, HRESULT},
     Win32::{
         Foundation::{
             CLASS_E_CLASSNOTAVAILABLE, E_FAIL, E_UNEXPECTED, HMODULE, MAX_PATH, S_FALSE, S_OK,

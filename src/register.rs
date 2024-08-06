@@ -1,5 +1,5 @@
 use windows::{
-    core::{ComInterface, Result, GUID},
+    core::{Interface, Result, GUID},
     Win32::{
         Foundation::HMODULE,
         System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER},
@@ -19,7 +19,7 @@ use crate::{
     },
 };
 
-pub fn create_instance<T: ComInterface>(clsid: &GUID) -> Result<T> {
+pub fn create_instance<T: Interface>(clsid: &GUID) -> Result<T> {
     unsafe { CoCreateInstance(clsid, None, CLSCTX_INPROC_SERVER) }
 }
 

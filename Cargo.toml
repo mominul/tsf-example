@@ -10,11 +10,11 @@ crate-type = ["cdylib"]
 [dependencies]
 simple-logging = "2"
 log = "0.4"
-winreg = "0.11"
-variant-rs = "0.3"
+windows-core = "0.58.0"
+winreg = "0.52"
 
 [dependencies.windows]
-version = "0.48"
+version = "0.58"
 features = [
     "implement",
     "Win32_Foundation",
@@ -29,4 +29,4 @@ features = [
 ]
 
 [build-dependencies]
-embed-resource = "1.8"
+embed-resource = "2.4"

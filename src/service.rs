@@ -1,7 +1,7 @@
 use std::{cell::RefCell, mem::ManuallyDrop, ptr::null_mut};
 
 use windows::{
-    core::{implement, ComInterface, Result},
+    core::{implement, Interface, Result},
     Win32::{
         Foundation::{E_FAIL, S_OK},
         UI::TextServices::{
@@ -9,8 +9,7 @@ use windows::{
             ITfDocumentMgr, ITfEditRecord, ITfKeyEventSink, ITfLangBarItem, ITfLangBarItemMgr,
             ITfSource, ITfTextEditSink, ITfTextEditSink_Impl, ITfTextInputProcessor,
             ITfTextInputProcessor_Impl, ITfThreadMgr, ITfThreadMgrEventSink,
-            ITfThreadMgrEventSink_Impl, TF_GTP_INCL_TEXT, TF_INVALID_COOKIE,
-            TF_SELECTION,
+            ITfThreadMgrEventSink_Impl, TF_GTP_INCL_TEXT, TF_INVALID_COOKIE, TF_SELECTION,
         },
     },
 };
@@ -49,7 +48,7 @@ impl TextService {
         }
     }
 
-    pub unsafe fn cast_to<I: ComInterface>(&self) -> Result<I> {
+    pub unsafe fn cast_to<I: Interface>(&self) -> Result<I> {
         self.cast()
     }
 
@@ -95,7 +94,13 @@ impl TextService {
 
     fn init_language_bar(&self) {
         log::trace!("TextService::init_language_bar");
-        let Ok(mgr) = self.thread_mgr.borrow().as_ref().unwrap().cast::<ITfLangBarItemMgr>() else {
+        let Ok(mgr) = self
+            .thread_mgr
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .cast::<ITfLangBarItemMgr>()
+        else {
             return;
         };
 
@@ -137,7 +142,7 @@ impl TextService {
     }
 }
 
-impl ITfTextInputProcessor_Impl for TextService {
+impl ITfTextInputProcessor_Impl for TextService_Impl {
     fn Activate(&self, ptim: Option<&ITfThreadMgr>, tid: u32) -> Result<()> {
         log::trace!("TextService::Activate");
         let thread_mgr = ptim.map(|v| v.clone());
@@ -222,7 +227,7 @@ impl ITfTextInputProcessor_Impl for TextService {
     }
 }
 
-impl ITfThreadMgrEventSink_Impl for TextService {
+impl ITfThreadMgrEventSink_Impl for TextService_Impl {
     fn OnInitDocumentMgr(&self, _pdim: Option<&ITfDocumentMgr>) -> Result<()> {
         log::trace!("TextService::OnInitDocumentMgr");
         S_OK.ok()
@@ -260,7 +265,7 @@ impl ITfThreadMgrEventSink_Impl for TextService {
     }
 }
 
-impl ITfTextEditSink_Impl for TextService {
+impl ITfTextEditSink_Impl for TextService_Impl {
     fn OnEndEdit(
         &self,
         context: Option<&ITfContext>,
@@ -318,7 +323,7 @@ impl ITfTextEditSink_Impl for TextService {
     }
 }
 
-impl ITfCompositionSink_Impl for TextService {
+impl ITfCompositionSink_Impl for TextService_Impl {
     fn OnCompositionTerminated(
         &self,
         _ecwrite: u32,

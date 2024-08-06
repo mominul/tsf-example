@@ -5,8 +5,7 @@ use std::{
 };
 
 use windows::{
-    core::{implement, ComInterface, Error, IUnknown, Result, BSTR, GUID},
-    w,
+    core::{implement, w, Error, IUnknown, Interface, Result, BSTR, GUID},
     Win32::{
         Foundation::{BOOL, E_NOINTERFACE, E_NOTIMPL, POINT, RECT, S_OK},
         System::Ole::{CONNECT_E_ADVISELIMIT, CONNECT_E_CANNOTCONNECT, CONNECT_E_NOCONNECTION},
@@ -71,7 +70,7 @@ impl<'a> LangBarItemButton<'a> {
     }
 }
 
-impl<'a> ITfLangBarItem_Impl for LangBarItemButton<'a> {
+impl<'a> ITfLangBarItem_Impl for LangBarItemButton_Impl<'a> {
     fn GetInfo(&self, pinfo: *mut TF_LANGBARITEMINFO) -> Result<()> {
         log::trace!("LangBarItemButton::GetInfo");
         unsafe {
@@ -99,7 +98,7 @@ impl<'a> ITfLangBarItem_Impl for LangBarItemButton<'a> {
     }
 }
 
-impl<'a> ITfLangBarItemButton_Impl for LangBarItemButton<'a> {
+impl<'a> ITfLangBarItemButton_Impl for LangBarItemButton_Impl<'a> {
     fn OnClick(&self, _click: TfLBIClick, _pt: &POINT, _prcarea: *const RECT) -> Result<()> {
         log::trace!("LangBarItemButton::OnClick");
         S_OK.ok()
@@ -187,7 +186,7 @@ impl<'a> ITfLangBarItemButton_Impl for LangBarItemButton<'a> {
     }
 }
 
-impl<'a> ITfSource_Impl for LangBarItemButton<'a> {
+impl<'a> ITfSource_Impl for LangBarItemButton_Impl<'a> {
     fn AdviseSink(&self, riid: *const GUID, punk: Option<&IUnknown>) -> Result<u32> {
         log::trace!("LangBarItemButton::AdviseSink");
         let iid = unsafe { *riid };
