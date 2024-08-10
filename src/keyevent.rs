@@ -5,7 +5,7 @@ use windows::{
     Win32::{
         Foundation::{BOOL, E_FAIL, LPARAM, S_OK, WPARAM},
         UI::{
-            Input::KeyboardAndMouse::{VK_F6, VK_KANJI},
+            Input::KeyboardAndMouse::{VK_F6, VK_KANJI, VK_LEFT, VK_RETURN, VK_RIGHT},
             TextServices::{
                 ITfCompartmentMgr, ITfContext, ITfKeyEventSink, ITfKeyEventSink_Impl,
                 ITfKeystrokeMgr, GUID_COMPARTMENT_EMPTYCONTEXT, GUID_COMPARTMENT_KEYBOARD_DISABLED,
@@ -234,7 +234,7 @@ impl TextService {
     }
 
     fn is_key_eaten(&self, param: WPARAM) -> bool {
-        log::trace!("TextService::is_key_eaten");
+        log::trace!("TextService::is_key_eaten -> {:?}", param);
         // if the keyboard is disabled, we don't eat keys.
         if self.is_keyboard_disabled() {
             return false;
@@ -242,6 +242,14 @@ impl TextService {
 
         if !self.is_keyboard_open() {
             return false;
+        }
+
+        // eat only keys that KeyHandlerEditSession can handle.
+        if param.0 == VK_LEFT.0.into()
+            && param.0 == VK_RIGHT.0.into()
+            && param.0 == VK_RETURN.0.into()
+        {
+            return self.is_composing();
         }
 
         // we're only interested in VK_A - VK_Z, when this is open.
@@ -283,12 +291,18 @@ impl ITfKeyEventSink_Impl for TextService_Impl {
     // the application will not handle the keystroke.
     fn OnKeyDown(
         &self,
-        _pic: Option<&ITfContext>,
+        context: Option<&ITfContext>,
         wparam: WPARAM,
-        _lparam: LPARAM,
+        lparam: LPARAM,
     ) -> Result<BOOL> {
-        log::trace!("TextService::OnKeyDown");
-        Ok(self.is_key_eaten(wparam).into())
+        log::trace!("TextService::OnKeyDown -> {:?}", wparam);
+        let eaten = self.is_key_eaten(wparam);
+
+        if eaten {
+            _ = self.invoke_key_handler(context.unwrap(), wparam, lparam);
+        }
+
+        Ok(eaten.into())
     }
 
     // Called by the system to offer this service a keystroke.  If TRUE is returned,

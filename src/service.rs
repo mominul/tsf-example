@@ -6,15 +6,20 @@ use windows::{
         Foundation::{E_FAIL, S_OK},
         UI::TextServices::{
             ITfComposition, ITfCompositionSink, ITfCompositionSink_Impl, ITfContext,
-            ITfDocumentMgr, ITfEditRecord, ITfKeyEventSink, ITfLangBarItem, ITfLangBarItemMgr,
-            ITfSource, ITfTextEditSink, ITfTextEditSink_Impl, ITfTextInputProcessor,
-            ITfTextInputProcessor_Impl, ITfThreadMgr, ITfThreadMgrEventSink,
-            ITfThreadMgrEventSink_Impl, TF_GTP_INCL_TEXT, TF_INVALID_COOKIE, TF_SELECTION,
+            ITfDocumentMgr, ITfEditRecord, ITfEditSession, ITfKeyEventSink, ITfLangBarItem,
+            ITfLangBarItemMgr, ITfSource, ITfTextEditSink, ITfTextEditSink_Impl,
+            ITfTextInputProcessor, ITfTextInputProcessor_Impl, ITfThreadMgr, ITfThreadMgrEventSink,
+            ITfThreadMgrEventSink_Impl, TF_ES_ASYNCDONTCARE, TF_ES_READWRITE, TF_ES_SYNC,
+            TF_GTP_INCL_TEXT, TF_INVALID_COOKIE, TF_SELECTION,
         },
     },
 };
 
-use crate::{keyhandler::is_range_covered, languagebar::LangBarItemButton};
+use crate::{
+    editsession::{EndCompositionEditSession, StartCompositionEditSession},
+    keyhandler::is_range_covered,
+    languagebar::LangBarItemButton,
+};
 
 const TF_CLIENTID_NULL: u32 = 0;
 
@@ -134,11 +139,53 @@ impl TextService {
     }
 
     pub fn is_composing(&self) -> bool {
+        log::trace!("TextService::is_composing");
         self.composition.borrow().is_some()
     }
 
     pub fn set_composition(&self, composition: ITfComposition) {
+        log::trace!("TextService::set_composition");
         self.composition.replace(Some(composition));
+    }
+
+    pub fn start_composition(&self, context: &ITfContext) {
+        log::trace!("TextService::start_composition");
+        let session = StartCompositionEditSession::new(context, self);
+        let session: ITfEditSession = session.into();
+
+        // we need a synchronus document write lock.
+        // the StartCompositionEditSession will do all the work when the
+        // StartCompositionEditSession::DoEditSession method is called by the context
+        unsafe {
+            _ = context.RequestEditSession(
+                self.client_id.borrow().clone(),
+                &session,
+                TF_ES_SYNC | TF_ES_READWRITE,
+            );
+        }
+    }
+
+    pub fn terminate_composition(&self, ec: u32) {
+        log::trace!("TextService::terminate_composition");
+        if let Some(composition) = self.composition.borrow().as_ref() {
+            unsafe {
+                _ = composition.EndComposition(ec);
+            }
+            self.composition.replace(None);
+        }
+    }
+
+    pub fn end_composition(&self, context: &ITfContext) {
+        log::trace!("TextService::end_composition");
+        let session = EndCompositionEditSession::new(self, context);
+        let session: ITfEditSession = session.into();
+        unsafe {
+            _ = context.RequestEditSession(
+                self.client_id.borrow().clone(),
+                &session,
+                TF_ES_ASYNCDONTCARE | TF_ES_READWRITE,
+            );
+        }
     }
 }
 
@@ -300,8 +347,8 @@ impl ITfTextEditSink_Impl for TextService_Impl {
                             {
                                 let [selection] = selection;
                                 let range_test = ManuallyDrop::into_inner(selection.range).unwrap();
-                                if !is_range_covered(ecreadonly, range_test, range) {
-                                    todo!() // _EndComposition(pContext);
+                                if !is_range_covered(ecreadonly, &range_test, &range) {
+                                    self.end_composition(context.unwrap());
                                 }
                             }
                         }

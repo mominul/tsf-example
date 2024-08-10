@@ -1,4 +1,5 @@
 mod dll;
+mod editsession;
 mod factory;
 mod globals;
 mod keyevent;
