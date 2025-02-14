@@ -7,3 +7,4 @@ mod keyhandler;
 mod languagebar;
 mod register;
 mod service;
+mod attribute;

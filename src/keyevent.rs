@@ -5,7 +5,7 @@ use windows::{
     Win32::{
         Foundation::{BOOL, E_FAIL, LPARAM, S_OK, WPARAM},
         UI::{
-            Input::KeyboardAndMouse::{VK_F6, VK_KANJI, VK_LEFT, VK_RETURN, VK_RIGHT},
+            Input::KeyboardAndMouse::{VK_F6, VK_KANJI, VK_LEFT, VK_RETURN, VK_RIGHT, VK_SPACE},
             TextServices::{
                 ITfCompartmentMgr, ITfContext, ITfKeyEventSink, ITfKeyEventSink_Impl,
                 ITfKeystrokeMgr, GUID_COMPARTMENT_EMPTYCONTEXT, GUID_COMPARTMENT_KEYBOARD_DISABLED,
@@ -248,6 +248,7 @@ impl TextService {
         if param.0 == VK_LEFT.0.into()
             && param.0 == VK_RIGHT.0.into()
             && param.0 == VK_RETURN.0.into()
+            && param.0 == VK_SPACE.0.into()
         {
             return self.is_composing();
         }
