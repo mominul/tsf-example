@@ -143,7 +143,7 @@ impl IEnumTfDisplayAttributeInfo_Impl for EnumDisplayAttributeInfo_Impl {
         if fetched == ulcount {
             Ok(())
         } else {
-            S_FALSE.ok()
+            Err(S_FALSE.into()) 
         }
     }
 
