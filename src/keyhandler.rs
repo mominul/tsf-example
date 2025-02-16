@@ -1,6 +1,7 @@
 use std::mem::ManuallyDrop;
 
 use windows::core::implement;
+use windows::Win32::UI::Input::KeyboardAndMouse::VK_SPACE;
 use windows::Win32::UI::TextServices::ITfEditSession;
 use windows::Win32::{
     Foundation::{LPARAM, S_OK, WPARAM},
@@ -43,6 +44,8 @@ impl<'a> ITfEditSession_Impl for KeyHandlerEditSession_Impl<'a> {
             self.service.handle_arrow_key(ec, &self.context, self.param)
         } else if self.param.0 == VK_RETURN.0.into() {
             self.service.handle_return_key(ec, &self.context)
+        } else if self.param.0 == VK_SPACE.0.into() {
+            self.service.handle_space_key(ec, &self.context)
         } else if self.param.0 >= b'A'.into() && self.param.0 <= b'Z'.into() {
             self.service
                 .handle_character_key(ec, &self.context, self.param)
@@ -95,14 +98,27 @@ impl TextService {
             _ = context.SetSelection(ec, &[selection]);
         }
 
+        // set the display attribute to the composition range.
+        _ = self.set_composition_display_attributes(ec, context, *self.display_attribute_input.borrow() as i32);
+
         S_OK.ok()
     }
 
     pub fn handle_return_key(&self, ec: u32, context: &ITfContext) -> Result<()> {
         log::trace!("TextService::handle_return_key");
         // just terminate the composition
-        self.terminate_composition(ec);
-        return S_OK.ok();
+        self.terminate_composition(ec, context);
+        S_OK.ok()
+    }
+
+    pub fn handle_space_key(&self, ec: u32, context: &ITfContext) -> Result<()> {
+        // set the display attribute to the composition range.
+        //
+        // The real text service may have linguistic logic here and set 
+        // the specific range to apply the display attribute rather than 
+        // applying the display attribute to the entire composition range.
+        _ = self.set_composition_display_attributes(ec, context, *self.display_attribute_converted.borrow() as i32);
+        S_OK.ok()
     }
 
     pub fn handle_arrow_key(&self, ec: u32, context: &ITfContext, param: WPARAM) -> Result<()> {
@@ -166,7 +182,7 @@ impl TextService {
         &self,
         context: &ITfContext,
         wparam: WPARAM,
-        lparam: LPARAM,
+        _lparam: LPARAM,
     ) -> Result<()> {
         log::trace!("TextService::invoke_key_handler");
         let session = KeyHandlerEditSession::new(&self, context, wparam);

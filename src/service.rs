@@ -10,7 +10,7 @@ use windows::{
             ITfLangBarItemMgr, ITfSource, ITfTextEditSink, ITfTextEditSink_Impl,
             ITfTextInputProcessor, ITfTextInputProcessor_Impl, ITfThreadMgr, ITfThreadMgrEventSink,
             ITfThreadMgrEventSink_Impl, TF_ES_ASYNCDONTCARE, TF_ES_READWRITE, TF_ES_SYNC,
-            TF_GTP_INCL_TEXT, TF_INVALID_COOKIE, TF_SELECTION,
+            TF_GTP_INCL_TEXT, TF_INVALID_COOKIE, TF_SELECTION, ITfDisplayAttributeProvider
         },
     },
 };
@@ -28,7 +28,8 @@ const TF_CLIENTID_NULL: u32 = 0;
     ITfThreadMgrEventSink,
     ITfTextEditSink,
     ITfKeyEventSink,
-    ITfCompositionSink
+    ITfCompositionSink,
+    ITfDisplayAttributeProvider,
 )]
 pub struct TextService {
     pub thread_mgr: RefCell<Option<ITfThreadMgr>>,
@@ -38,6 +39,8 @@ pub struct TextService {
     pub langbar_item: RefCell<Option<ITfLangBarItem>>,
     pub client_id: RefCell<u32>,
     pub composition: RefCell<Option<ITfComposition>>,
+    pub display_attribute_input: RefCell<u32>,
+    pub display_attribute_converted: RefCell<u32>,
 }
 
 impl TextService {
@@ -50,6 +53,8 @@ impl TextService {
             langbar_item: RefCell::new(None),
             client_id: RefCell::new(TF_CLIENTID_NULL),
             composition: RefCell::new(None),
+            display_attribute_input: RefCell::new(0),
+            display_attribute_converted: RefCell::new(0),
         }
     }
 
@@ -165,10 +170,12 @@ impl TextService {
         }
     }
 
-    pub fn terminate_composition(&self, ec: u32) {
+    pub fn terminate_composition(&self, ec: u32, context: &ITfContext) {
         log::trace!("TextService::terminate_composition");
         if let Some(composition) = self.composition.borrow().as_ref() {
             unsafe {
+                // remove the display attribute from the composition range.
+                self.clear_composition_display_attributes(ec, context);
                 _ = composition.EndComposition(ec);
             }
             self.composition.replace(None);
@@ -220,11 +227,27 @@ impl ITfTextInputProcessor_Impl for TextService_Impl {
         // Initialize Language Bar.
         self.init_language_bar();
 
-        // Initialize KeyEventSink
-        self.init_key_event_sink()?;
-
+        
         // Initialize PreservedKeys
         self.init_preserved_key();
+        
+        // Layman's try in Rust, waiting for the moment when `try` will bw avaiable! 
+        let failure = || -> Result<()> {
+            // Initialize KeyEventSink
+            self.init_key_event_sink()?;
+            
+            // Initialize display guid atom
+            self.init_display_attribute_guid_atom()?;
+
+            Ok(())
+        };
+
+        if failure().is_err() {
+            // cleanup any half-finished init
+            _ = self.Deactivate();
+            log::trace!("TextService::Activate: Fail to set sink or atom!");
+            return E_FAIL.ok();
+        }
 
         S_OK.ok()
     }

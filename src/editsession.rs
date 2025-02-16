@@ -86,7 +86,7 @@ impl<'a> EndCompositionEditSession<'a> {
 impl<'a> ITfEditSession_Impl for EndCompositionEditSession_Impl<'a> {
     fn DoEditSession(&self, ec: u32) -> windows_core::Result<()> {
         log::trace!("EndCompositionEditSession::DoEditSession");
-        self.service.terminate_composition(ec);
+        self.service.terminate_composition(ec, &self.context);
         S_OK.ok()
     }
 }

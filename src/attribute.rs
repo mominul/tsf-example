@@ -3,20 +3,19 @@ use std::cell::RefCell;
 use windows::{
     core::{implement, GUID},
     Win32::{
-        Foundation::{COLORREF, FALSE, S_FALSE, S_OK},
+        Foundation::{COLORREF, E_INVALIDARG, FALSE, S_FALSE, S_OK},
         UI::TextServices::{
-            IEnumTfDisplayAttributeInfo, IEnumTfDisplayAttributeInfo_Impl, ITfDisplayAttributeInfo,
-            ITfDisplayAttributeInfo_Impl, TF_ATTR_INPUT, TF_ATTR_TARGET_CONVERTED, TF_CT_COLORREF,
-            TF_CT_NONE, TF_DA_COLOR, TF_DA_COLOR_0, TF_DISPLAYATTRIBUTE, TF_LS_NONE, TF_LS_SOLID,
+            CLSID_TF_CategoryMgr, IEnumTfDisplayAttributeInfo, IEnumTfDisplayAttributeInfo_Impl, ITfCategoryMgr, ITfContext, ITfDisplayAttributeInfo, ITfDisplayAttributeInfo_Impl, ITfDisplayAttributeProvider_Impl, GUID_PROP_ATTRIBUTE, TF_ATTR_INPUT, TF_ATTR_TARGET_CONVERTED, TF_CT_COLORREF, TF_CT_NONE, TF_DA_COLOR, TF_DA_COLOR_0, TF_DISPLAYATTRIBUTE, TF_LS_NONE, TF_LS_SOLID
         },
     },
 };
+use windows_core::VARIANT;
 use winreg::{
     enums::{RegType::REG_BINARY, HKEY_CURRENT_USER, KEY_WRITE},
     RegKey, RegValue,
 };
 
-use crate::globals::{GUID_DISPLAY_ATTRIBUTE_CONVERTED, GUID_DISPLAY_ATTRIBUTE_INPUT};
+use crate::{globals::{GUID_DISPLAY_ATTRIBUTE_CONVERTED, GUID_DISPLAY_ATTRIBUTE_INPUT}, register::create_instance, service::{TextService, TextService_Impl}};
 
 // the registry key of this text service to save the custmized display attribute
 const ATTRIBUTE_INFO_KEY: &str = "Software\\Sample Text Service";
@@ -247,5 +246,76 @@ impl ITfDisplayAttributeInfo_Impl for DisplayAttributeInfo_Impl {
 
     fn Reset(&self) -> windows_core::Result<()> {
         self.SetAttributeInfo(&self.attribute)
+    }
+}
+
+impl ITfDisplayAttributeProvider_Impl for TextService_Impl {
+    fn EnumDisplayAttributeInfo(&self) -> windows_core::Result<IEnumTfDisplayAttributeInfo> {
+        let iter = EnumDisplayAttributeInfo::new();
+        Ok(iter.into())
+    }
+
+    fn GetDisplayAttributeInfo(&self,guid: *const windows_core::GUID) -> windows_core::Result<ITfDisplayAttributeInfo> {
+        let Some(guid) = (unsafe { guid.as_ref() }) else {
+            return Err(E_INVALIDARG.into());
+        };
+        
+        if *guid == GUID_DISPLAY_ATTRIBUTE_INPUT {
+            let info = DisplayAttributeInfo::new_input();
+            Ok(info.into())
+        } else if *guid == GUID_DISPLAY_ATTRIBUTE_CONVERTED {
+            let info = DisplayAttributeInfo::new_converted();
+            Ok(info.into())
+        } else {
+            Err(E_INVALIDARG.into())
+        }
+    }
+}
+
+// apply the display attribute to the composition range.
+impl TextService {
+    /// Because it's expensive to map our display attribute GUID to a TSF
+    /// TfGuidAtom, we do it once when Activate is called.
+    pub fn init_display_attribute_guid_atom(&self) -> windows_core::Result<()> {
+        let mgr: ITfCategoryMgr = create_instance(&CLSID_TF_CategoryMgr)?;
+
+        unsafe {
+            // register the display attribute for input text.
+            *self.display_attribute_input.borrow_mut() = mgr.RegisterGUID(&GUID_DISPLAY_ATTRIBUTE_INPUT)?;
+
+            // register the display attribute for the converted text.
+            *self.display_attribute_converted.borrow_mut() = mgr.RegisterGUID(&GUID_DISPLAY_ATTRIBUTE_CONVERTED)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn set_composition_display_attributes(&self, ec: u32, context: &ITfContext, attribute: i32) -> windows_core::Result<bool> {
+        let Ok(range) = (unsafe { self.composition.borrow().as_ref().unwrap().GetRange() }) else {
+            return Ok(false);
+        };
+
+        let property = unsafe { context.GetProperty(&GUID_PROP_ATTRIBUTE)? };
+
+        let var: VARIANT = attribute.into();
+        
+        unsafe {
+            property.SetValue(ec, &range, &var)?;
+        }
+
+        Ok(true)
+    }
+
+    pub fn clear_composition_display_attributes(&self, ec: u32, context: &ITfContext) {
+        let Ok(range) = (unsafe { self.composition.borrow().as_ref().unwrap().GetRange() }) else {
+            return;
+        };
+
+        if let Ok(property) = unsafe { context.GetProperty(&GUID_PROP_ATTRIBUTE) } {
+            // clear the value over the range
+            unsafe {
+                _ = property.Clear(ec, &range);
+            }
+        }
     }
 }

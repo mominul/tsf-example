@@ -5,7 +5,8 @@ use windows::{
         System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER},
         UI::TextServices::{
             CLSID_TF_CategoryMgr, CLSID_TF_InputProcessorProfiles, ITfCategoryMgr,
-            ITfInputProcessorProfiles, GUID_TFCAT_TIP_KEYBOARD,
+            ITfInputProcessorProfiles, GUID_TFCAT_DISPLAYATTRIBUTEPROVIDER,
+            GUID_TFCAT_TIP_KEYBOARD,
         },
     },
 };
@@ -80,9 +81,17 @@ pub fn register_categories() -> Result<()> {
     let mgr: ITfCategoryMgr = create_instance(&CLSID_TF_CategoryMgr)?;
 
     unsafe {
+        // register this text service to GUID_TFCAT_TIP_KEYBOARD category.
         mgr.RegisterCategory(
             &CLSID_TEXT_SERVICE,
             &GUID_TFCAT_TIP_KEYBOARD,
+            &CLSID_TEXT_SERVICE,
+        )?;
+
+        // register this text service to GUID_TFCAT_DISPLAYATTRIBUTEPROVIDER category.
+        mgr.RegisterCategory(
+            &CLSID_TEXT_SERVICE,
+            &GUID_TFCAT_DISPLAYATTRIBUTEPROVIDER,
             &CLSID_TEXT_SERVICE,
         )?;
     }
@@ -94,9 +103,17 @@ pub fn unregister_categories() -> Result<()> {
     let mgr: ITfCategoryMgr = create_instance(&CLSID_TF_CategoryMgr)?;
 
     unsafe {
+        // unregister this text service from GUID_TFCAT_TIP_KEYBOARD category.
         mgr.UnregisterCategory(
             &CLSID_TEXT_SERVICE,
             &GUID_TFCAT_TIP_KEYBOARD,
+            &CLSID_TEXT_SERVICE,
+        )?;
+
+        // unregister this text service from GUID_TFCAT_DISPLAYATTRIBUTEPROVIDER category.
+        mgr.UnregisterCategory(
+            &CLSID_TEXT_SERVICE,
+            &GUID_TFCAT_DISPLAYATTRIBUTEPROVIDER,
             &CLSID_TEXT_SERVICE,
         )?;
     }
