@@ -399,6 +399,7 @@ impl ITfCompositionSink_Impl for TextService_Impl {
         _ecwrite: u32,
         _pcomposition: Option<&ITfComposition>,
     ) -> Result<()> {
+        log::trace!("TextService::OnCompositionTerminated");
         // release our cached composition
         if self.composition.borrow().is_some() {
             self.composition.replace(None);

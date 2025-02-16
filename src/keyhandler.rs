@@ -112,6 +112,7 @@ impl TextService {
     }
 
     pub fn handle_space_key(&self, ec: u32, context: &ITfContext) -> Result<()> {
+        log::trace!("TextService::handle_space_key");
         // set the display attribute to the composition range.
         //
         // The real text service may have linguistic logic here and set 

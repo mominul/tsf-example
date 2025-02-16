@@ -90,6 +90,7 @@ impl EnumDisplayAttributeInfo {
 impl IEnumTfDisplayAttributeInfo_Impl for EnumDisplayAttributeInfo_Impl {
     /// Returns a copy of the object.
     fn Clone(&self) -> windows_core::Result<IEnumTfDisplayAttributeInfo> {
+        log::trace!("EnumDisplayAttributeInfo::Clone");
         let clone = EnumDisplayAttributeInfo::new();
 
         // the clone should match this object's state
@@ -105,6 +106,7 @@ impl IEnumTfDisplayAttributeInfo_Impl for EnumDisplayAttributeInfo_Impl {
         rginfo: *mut Option<ITfDisplayAttributeInfo>,
         pcfetched: *mut u32,
     ) -> windows_core::Result<()> {
+        log::trace!("EnumDisplayAttributeInfo::Next");
         let mut fetched = 0;
 
         if ulcount == 0 {
@@ -148,12 +150,14 @@ impl IEnumTfDisplayAttributeInfo_Impl for EnumDisplayAttributeInfo_Impl {
 
     // Resets the enumeration.
     fn Reset(&self) -> windows_core::Result<()> {
+        log::trace!("EnumDisplayAttributeInfo::Reset");
         *self.index.borrow_mut() = 0;
         S_OK.ok()
     }
 
     // Skips past objects in the enumeration.
     fn Skip(&self, ulcount: u32) -> windows_core::Result<()> {
+        log::trace!("EnumDisplayAttributeInfo::Skip");
         // we have only a single item to enum
         // so we can just skip it and avoid any overflow errors
         if ulcount > 0 && *self.index.borrow() == 0 {
@@ -194,14 +198,17 @@ impl DisplayAttributeInfo {
 
 impl ITfDisplayAttributeInfo_Impl for DisplayAttributeInfo_Impl {
     fn GetGUID(&self) -> windows_core::Result<GUID> {
+        log::trace!("DisplayAttributeInfo::GetGUID");
         Ok(self.guid)
     }
 
     fn GetDescription(&self) -> windows_core::Result<windows_core::BSTR> {
+        log::trace!("DisplayAttributeInfo::GetDescription");
         Ok(self.description.clone().into())
     }
 
     fn GetAttributeInfo(&self, pda: *mut TF_DISPLAYATTRIBUTE) -> windows_core::Result<()> {
+        log::trace!("DisplayAttributeInfo::GetAttributeInfo");
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
         let value = hkcu
             .open_subkey(ATTRIBUTE_INFO_KEY)
@@ -221,6 +228,7 @@ impl ITfDisplayAttributeInfo_Impl for DisplayAttributeInfo_Impl {
     }
 
     fn SetAttributeInfo(&self, pda: *const TF_DISPLAYATTRIBUTE) -> windows_core::Result<()> {
+        log::trace!("DisplayAttributeInfo::SetAttributeInfo");
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
         let (key, _) = hkcu
             .create_subkey_with_flags(ATTRIBUTE_INFO_KEY, KEY_WRITE)
@@ -245,17 +253,20 @@ impl ITfDisplayAttributeInfo_Impl for DisplayAttributeInfo_Impl {
     }
 
     fn Reset(&self) -> windows_core::Result<()> {
+        log::trace!("DisplayAttributeInfo::Reset");
         self.SetAttributeInfo(&self.attribute)
     }
 }
 
 impl ITfDisplayAttributeProvider_Impl for TextService_Impl {
     fn EnumDisplayAttributeInfo(&self) -> windows_core::Result<IEnumTfDisplayAttributeInfo> {
+        log::trace!("TextService::EnumDisplayAttributeInfo");
         let iter = EnumDisplayAttributeInfo::new();
         Ok(iter.into())
     }
 
     fn GetDisplayAttributeInfo(&self,guid: *const windows_core::GUID) -> windows_core::Result<ITfDisplayAttributeInfo> {
+        log::trace!("TextService::GetDisplayAttributeInfo");
         let Some(guid) = (unsafe { guid.as_ref() }) else {
             return Err(E_INVALIDARG.into());
         };
@@ -277,6 +288,7 @@ impl TextService {
     /// Because it's expensive to map our display attribute GUID to a TSF
     /// TfGuidAtom, we do it once when Activate is called.
     pub fn init_display_attribute_guid_atom(&self) -> windows_core::Result<()> {
+        log::trace!("TextService::init_display_attribute_guid_atom");
         let mgr: ITfCategoryMgr = create_instance(&CLSID_TF_CategoryMgr)?;
 
         unsafe {
@@ -291,6 +303,7 @@ impl TextService {
     }
 
     pub fn set_composition_display_attributes(&self, ec: u32, context: &ITfContext, attribute: i32) -> windows_core::Result<bool> {
+        log::trace!("TextService::set_composition_display_attributes");
         let Ok(range) = (unsafe { self.composition.borrow().as_ref().unwrap().GetRange() }) else {
             return Ok(false);
         };
@@ -307,6 +320,7 @@ impl TextService {
     }
 
     pub fn clear_composition_display_attributes(&self, ec: u32, context: &ITfContext) {
+        log::trace!("TextService::clear_composition_display_attributes");
         let Ok(range) = (unsafe { self.composition.borrow().as_ref().unwrap().GetRange() }) else {
             return;
         };
